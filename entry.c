@@ -15,6 +15,7 @@
 #include "fsmonitor.h"
 #include "entry.h"
 #include "parallel-checkout.h"
+#include "virtual_fs.h"
 
 static void create_directories(const char *path, int path_len,
 			       const struct checkout *state)
@@ -296,6 +297,7 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 	const struct submodule *sub;
 	struct checkout_metadata meta;
 	static int scratch_nr_checkouts;
+	int write_placeholder = 1;
 
 	clone_checkout_metadata(&meta, &state->meta, &ce->oid);
 
@@ -304,8 +306,13 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 		if (filter &&
 		    !streaming_write_entry(ce, path, filter,
 					   state, to_tempfile,
-					   &fstat_done, &st))
-			goto finish;
+					   &fstat_done, &st)) {
+				fprintf(stderr, "%s streaming filter applied\n", path);
+				goto finish;
+		}
+		else {
+			fprintf(stderr, "%s no streaming filter\n", path);
+		}
 	}
 
 	switch (ce_mode_s_ifmt) {
@@ -343,26 +350,33 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 					     ce->name, oid_to_hex(&ce->oid));
 		}
 
-		/*
-		 * Convert from git internal format to working tree format
-		 */
-		if (dco && dco->state != CE_NO_DELAY) {
-			ret = async_convert_to_working_tree_ca(ca, ce->name,
-							       new_blob, size,
-							       &buf, &meta, dco);
-			if (ret) {
-				struct string_list_item *item =
-					string_list_lookup(&dco->paths, ce->name);
-				if (item) {
-					item->util = nr_checkouts ? nr_checkouts
-							: &scratch_nr_checkouts;
-					free(new_blob);
-					goto delayed;
+		if (!write_placeholder) {
+			/*
+			* Convert from git internal format to working tree format
+			*/
+			if (dco && dco->state != CE_NO_DELAY) {
+				ret = async_convert_to_working_tree_ca(ca, ce->name,
+									new_blob, size,
+									&buf, &meta, dco);
+				if (ret) {
+					struct string_list_item *item =
+						string_list_lookup(&dco->paths, ce->name);
+					if (item) {
+						item->util = nr_checkouts ? nr_checkouts
+								: &scratch_nr_checkouts;
+						free(new_blob);
+						goto delayed;
+					}
 				}
+			} else {
+				ret = convert_to_working_tree_ca(ca, ce->name, new_blob,
+								size, &buf, &meta);
 			}
 		} else {
-			ret = convert_to_working_tree_ca(ca, ce->name, new_blob,
-							 size, &buf, &meta);
+			// CF_PLACEHOLDER_CREATE_INFO cloudEntry;
+			// CfCreatePlaceholders()
+			create_virtual_placeholder(NULL, NULL);
+			goto finish;
 		}
 
 		if (ret) {
