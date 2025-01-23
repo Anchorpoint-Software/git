@@ -28,6 +28,8 @@
 #include "../attr.h"
 #include "../string-list.h"
 #include "win32/wsl.h"
+#include "read-cache-ll.h"
+#include "virtual_fs.h"
 
 #define HCAST(type, handle) ((type)(intptr_t)handle)
 
@@ -4219,6 +4221,90 @@ int is_inside_windows_container(void)
 	RegCloseKey(handle);
 
 	return inside_container;
+}
+
+int is_win32_virtual_path(const char *path)
+{
+	int mode = get_placeholder_mode(path);
+	if (mode < 0) return -1;
+	if (mode == CE_PLACEHOLDER) return 1;
+	if (mode == CE_NO_PLACEHOLDER) return 0;
+
+	/* check if the path is a virtual path */
+	return is_path_virtual(path);
+}	
+
+// Function to check if a file path ends with a specific suffix
+static int has_suffix(const char *path, const char *suffix) {
+    size_t path_len = strlen(path);
+    size_t suffix_len = strlen(suffix);
+
+    // Ensure the path is long enough to contain the suffix
+    if (path_len < suffix_len) {
+        return 0;
+    }
+
+    // Compare the suffix with the end of the path
+    return strcmp(path + path_len - suffix_len, suffix) == 0;
+}
+
+// Function to check if a path is a git config file
+static int is_git_config_file(const char *path) {
+    if (has_suffix(path, ".gitignore")) {
+        return 1;
+    }
+    if (has_suffix(path, ".gitattributes")) {
+        return 1;
+    }
+    return 0;
+}
+
+int get_win32_placeholder_mode(const char *path)
+{
+	DWORD attr;
+	wchar_t wpath[MAX_LONG_PATH];
+	int wlen = xutftowcs_long_path(wpath, path);
+	if (wlen < 0) {
+		error("unable to convert '%s' to wide string", path);
+		return -1;
+	}
+
+	fprintf(stderr, "path: %s\n", path);
+
+	if (!is_valid_win32_path(path, 0)) {
+		error("invalid path '%s'", path);
+		return -1;
+	}
+
+	printf("is_git_config_file(path): %d\n", is_git_config_file(path));
+	if (is_git_config_file(path)){
+		return CE_NO_PLACEHOLDER;
+	}
+
+	/* strip trailing '/', or GetFileAttributes will fail */
+	while (wlen && is_dir_sep(wpath[wlen - 1])) {
+		wpath[--wlen] = 0;
+	}
+	if (!wlen) {
+		error("empty path '%s'", path);
+		return -1;
+	}
+
+	attr = GetFileAttributesW(wpath);
+	fprintf(stderr, "attr: %d\n", attr);
+	if ((attr & INVALID_FILE_ATTRIBUTES) == INVALID_FILE_ATTRIBUTES) {
+		// file does not exist, cannot check if it is a placeholder
+		return CE_UNKNOWN_PLACEHOLDER;
+	}
+
+	if ((attr & FILE_ATTRIBUTE_RECALL_ON_OPEN) == FILE_ATTRIBUTE_RECALL_ON_OPEN || 
+		(attr & FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS) == FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS) {
+		// file exists and is a placeholder, make it a placeholder again
+		return CE_PLACEHOLDER;
+	} else {
+		// file exists and is not a placeholder, do not make it a placeholder
+		return CE_NO_PLACEHOLDER;
+	}
 }
 
 int file_attr_to_st_mode (DWORD attr, DWORD tag, const char *path)

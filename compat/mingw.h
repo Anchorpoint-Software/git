@@ -735,3 +735,9 @@ int mingw_have_unix_sockets(void);
  * Check current process is inside Windows Container.
  */
 int is_inside_windows_container(void);
+
+int is_win32_virtual_path(const char *path);
+#define is_virtual_path(path) is_win32_virtual_path(path)
+
+int get_win32_placeholder_mode(const char *path);
+#define get_placeholder_mode(path) get_win32_placeholder_mode(path)

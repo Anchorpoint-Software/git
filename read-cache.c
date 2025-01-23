@@ -863,6 +863,9 @@ struct cache_entry *make_cache_entry(struct index_state *istate,
 	ce->ce_flags = create_ce_flags(stage);
 	ce->ce_namelen = len;
 	ce->ce_mode = create_ce_mode(mode);
+	ce->placeholder_mode = get_placeholder_mode(path);
+
+	fprintf(stderr, "make_cache_entry: %s is placeholder %d\n", path, ce->placeholder_mode);
 
 	ret = refresh_cache_entry(istate, ce, refresh_options);
 	if (ret != ce)
@@ -892,6 +895,9 @@ struct cache_entry *make_transient_cache_entry(unsigned int mode,
 	ce->ce_flags = create_ce_flags(stage);
 	ce->ce_namelen = len;
 	ce->ce_mode = create_ce_mode(mode);
+	ce->placeholder_mode = get_placeholder_mode(path);
+
+	fprintf(stderr, "make_transient_cache_entry: %s is placeholder %d\n", path, ce->placeholder_mode);
 
 	return ce;
 }

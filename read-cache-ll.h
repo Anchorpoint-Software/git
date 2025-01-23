@@ -16,12 +16,17 @@ struct cache_header {
 	uint32_t hdr_entries;
 };
 
+#define CE_UNKNOWN_PLACEHOLDER 0
+#define CE_NO_PLACEHOLDER 1
+#define CE_PLACEHOLDER 2
+
 #define INDEX_FORMAT_LB 2
 #define INDEX_FORMAT_UB 4
 
 struct cache_entry {
 	struct hashmap_entry ent;
 	struct stat_data ce_stat_data;
+	unsigned int placeholder_mode;
 	unsigned int ce_mode;
 	unsigned int ce_flags;
 	unsigned int mem_pool_allocated;
@@ -97,6 +102,7 @@ static inline void copy_cache_entry(struct cache_entry *dst,
 {
 	unsigned int state = dst->ce_flags & CE_HASHED;
 	int mem_pool_allocated = dst->mem_pool_allocated;
+	int placeholder_mode = dst->placeholder_mode;
 
 	/* Don't copy hash chain and name */
 	memcpy(&dst->ce_stat_data, &src->ce_stat_data,
@@ -108,6 +114,9 @@ static inline void copy_cache_entry(struct cache_entry *dst,
 
 	/* Restore the mem_pool_allocated flag */
 	dst->mem_pool_allocated = mem_pool_allocated;
+
+	/* Restore the placeholder_mode flag */
+	dst->placeholder_mode = placeholder_mode;
 }
 
 static inline unsigned create_ce_flags(unsigned stage)

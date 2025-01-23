@@ -297,7 +297,7 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 	const struct submodule *sub;
 	struct checkout_metadata meta;
 	static int scratch_nr_checkouts;
-	int write_placeholder = 1;
+	int write_placeholder = 0;
 
 	clone_checkout_metadata(&meta, &state->meta, &ce->oid);
 
@@ -307,11 +307,7 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 		    !streaming_write_entry(ce, path, filter,
 					   state, to_tempfile,
 					   &fstat_done, &st)) {
-				fprintf(stderr, "%s streaming filter applied\n", path);
 				goto finish;
-		}
-		else {
-			fprintf(stderr, "%s no streaming filter\n", path);
 		}
 	}
 
@@ -336,6 +332,22 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 		break;
 
 	case S_IFREG:
+		if (ce->placeholder_mode <= CE_UNKNOWN_PLACEHOLDER) {
+			ce->placeholder_mode = get_placeholder_mode(ce->name);
+
+			if (ce->placeholder_mode == CE_NO_PLACEHOLDER) {
+				write_placeholder = 0;
+			} else if (ce->placeholder_mode == CE_UNKNOWN_PLACEHOLDER) {
+				write_placeholder = state->clone || is_virtual_path(ce->name);
+			} else if (ce->placeholder_mode == CE_PLACEHOLDER) {
+				write_placeholder = 1;
+			}
+		}
+
+		fprintf(stderr, "write_entry: ce->placeholder_mode: %d\n", ce->placeholder_mode);
+		fprintf(stderr, "write_entry: state->clone: %s\n", state->clone ? "true" : "false");
+		fprintf(stderr, "write_entry: write_placeholder: %d\n", write_placeholder);
+
 		/*
 		 * We do not send the blob in case of a retry, so do not
 		 * bother reading it at all.
@@ -373,9 +385,8 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 								size, &buf, &meta);
 			}
 		} else {
-			// CF_PLACEHOLDER_CREATE_INFO cloudEntry;
-			// CfCreatePlaceholders()
-			create_virtual_placeholder(NULL, NULL);
+			create_placeholder(ce->name, size);
+			free(new_blob);
 			goto finish;
 		}
 
