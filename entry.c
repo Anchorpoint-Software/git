@@ -332,14 +332,14 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 
 	if (ce->placeholder_mode <= CE_UNKNOWN_PLACEHOLDER) {
 		ce->placeholder_mode = get_placeholder_mode(ce->name);
+	}
 
-		if (ce->placeholder_mode == CE_NO_PLACEHOLDER) {
-			write_placeholder = 0;
-		} else if (ce->placeholder_mode == CE_UNKNOWN_PLACEHOLDER) {
-			write_placeholder = state->clone || is_virtual_path(ce->name);
-		} else if (ce->placeholder_mode == CE_PLACEHOLDER) {
-			write_placeholder = 1;
-		}
+	if (ce->placeholder_mode == CE_NO_PLACEHOLDER) {
+		write_placeholder = 0;
+	} else if (ce->placeholder_mode == CE_UNKNOWN_PLACEHOLDER) {
+		write_placeholder = state->clone || is_virtual_path(ce->name);
+	} else if (ce->placeholder_mode == CE_PLACEHOLDER) {
+		write_placeholder = 1;
 	}
 
 	fprintf(stderr, "write_entry: ce->placeholder_mode: %d\n", ce->placeholder_mode);
