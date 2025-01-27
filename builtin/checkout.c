@@ -154,6 +154,7 @@ static int update_some(const struct object_id *oid, struct strbuf *base,
 	ce->ce_flags = create_ce_flags(0) | CE_UPDATE;
 	ce->ce_namelen = len;
 	ce->ce_mode = create_ce_mode(mode);
+	ce->placeholder_mode = get_placeholder_mode(ce->name);
 
 	/*
 	 * If the entry is the same as the current index, we can leave the old

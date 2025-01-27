@@ -280,6 +280,37 @@ void update_ce_after_write(const struct checkout *state, struct cache_entry *ce,
 	}
 }
 
+static size_t get_real_size(struct cache_entry *ce, size_t size) {
+    char *new_blob = NULL;
+
+    if (ce->ce_mode == S_IFLNK)
+        return size;
+
+    // detect lfs pointer file
+    if (size > 0 && size < 256) {
+        new_blob = read_blob_entry(ce, &size);
+        if (new_blob) {
+            if (starts_with(new_blob, "version https://git-lfs.github.com/spec/v1\noid sha256:")) {
+                // get size field from pointer
+                char *size_str = strstr(new_blob, "size ");
+                if (size_str) {
+                    size = atoi(size_str + 5);
+                }
+
+                free(new_blob);
+                return size;
+            }
+            free(new_blob);
+            return size;
+        }
+    }
+
+    if (new_blob) {
+        free(new_blob);
+    }
+    return size;
+}
+
 /* Note: ca is used (and required) iff the entry refers to a regular file. */
 static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca,
 		       const struct checkout *state, int to_tempfile,
@@ -299,10 +330,27 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 	static int scratch_nr_checkouts;
 	int write_placeholder = 0;
 
+	if (ce->placeholder_mode <= CE_UNKNOWN_PLACEHOLDER) {
+		ce->placeholder_mode = get_placeholder_mode(ce->name);
+
+		if (ce->placeholder_mode == CE_NO_PLACEHOLDER) {
+			write_placeholder = 0;
+		} else if (ce->placeholder_mode == CE_UNKNOWN_PLACEHOLDER) {
+			write_placeholder = state->clone || is_virtual_path(ce->name);
+		} else if (ce->placeholder_mode == CE_PLACEHOLDER) {
+			write_placeholder = 1;
+		}
+	}
+
+	fprintf(stderr, "write_entry: ce->placeholder_mode: %d\n", ce->placeholder_mode);
+	fprintf(stderr, "write_entry: state->clone: %s\n", state->clone ? "true" : "false");
+	fprintf(stderr, "write_entry: write_placeholder: %d\n", write_placeholder);
+
 	clone_checkout_metadata(&meta, &state->meta, &ce->oid);
 
-	if (ce_mode_s_ifmt == S_IFREG) {
+	if (ce_mode_s_ifmt == S_IFREG && !write_placeholder) {
 		struct stream_filter *filter = get_stream_filter_ca(ca, &ce->oid);
+		
 		if (filter &&
 		    !streaming_write_entry(ce, path, filter,
 					   state, to_tempfile,
@@ -332,22 +380,6 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 		break;
 
 	case S_IFREG:
-		if (ce->placeholder_mode <= CE_UNKNOWN_PLACEHOLDER) {
-			ce->placeholder_mode = get_placeholder_mode(ce->name);
-
-			if (ce->placeholder_mode == CE_NO_PLACEHOLDER) {
-				write_placeholder = 0;
-			} else if (ce->placeholder_mode == CE_UNKNOWN_PLACEHOLDER) {
-				write_placeholder = state->clone || is_virtual_path(ce->name);
-			} else if (ce->placeholder_mode == CE_PLACEHOLDER) {
-				write_placeholder = 1;
-			}
-		}
-
-		fprintf(stderr, "write_entry: ce->placeholder_mode: %d\n", ce->placeholder_mode);
-		fprintf(stderr, "write_entry: state->clone: %s\n", state->clone ? "true" : "false");
-		fprintf(stderr, "write_entry: write_placeholder: %d\n", write_placeholder);
-
 		/*
 		 * We do not send the blob in case of a retry, so do not
 		 * bother reading it at all.
@@ -385,7 +417,8 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 								size, &buf, &meta);
 			}
 		} else {
-			create_placeholder(ce->name, size);
+			create_placeholder(ce->name, get_real_size(ce, size), &ce->oid);
+			ce->placeholder_mode = CE_PLACEHOLDER;
 			free(new_blob);
 			goto finish;
 		}

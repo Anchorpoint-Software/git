@@ -4016,6 +4016,8 @@ static int reuse_worktree_file(struct index_state *istate,
 	struct stat st;
 	int pos, len;
 
+	fprintf(stderr, "reuse_worktree_file\n");
+
 	/*
 	 * We do not read the cache ourselves here, because the
 	 * benchmark with my previous version that always reads cache

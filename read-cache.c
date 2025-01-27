@@ -134,6 +134,7 @@ static void set_index_entry(struct index_state *istate, int nr, struct cache_ent
 
 	istate->cache[nr] = ce;
 	add_name_hash(istate, ce);
+	ce->placeholder_mode = get_placeholder_mode(ce->name);
 }
 
 static void replace_index_entry(struct index_state *istate, int nr, struct cache_entry *ce)
@@ -160,11 +161,15 @@ void rename_index_entry_at(struct index_state *istate, int nr, const char *new_n
 	new_entry->ce_flags &= ~CE_HASHED;
 	new_entry->ce_namelen = namelen;
 	new_entry->index = 0;
+	new_entry->placeholder_mode = get_placeholder_mode(new_name);
+	
 	memcpy(new_entry->name, new_name, namelen + 1);
 
 	cache_tree_invalidate_path(istate, old_entry->name);
 	untracked_cache_remove_from_index(istate, old_entry->name);
 	remove_index_entry_at(istate, nr);
+
+	fprintf(stderr, "rename_index_entry_at: %s -> %s\n", old_entry->name, new_entry->name);
 
 	/*
 	 * Refresh the new index entry. Using 'refresh_cache_entry' ensures
@@ -231,7 +236,17 @@ static int ce_compare_data(struct index_state *istate,
 			   struct stat *st)
 {
 	int match = -1;
-	int fd = git_open_cloexec(ce->name, O_RDONLY);
+	int fd = -1;
+
+	if (ce->placeholder_mode == CE_PLACEHOLDER) {
+		// Do not open placeholder as it would be hydrated, always assume unchanged 
+		fprintf(stderr, "ce_compare_data: %s is a placeholder\n", ce->name);
+		return 0;
+	}
+
+	fprintf(stderr, "ce_compare_data: %s mode: %d\n", ce->name, ce->placeholder_mode);
+
+	fd = git_open_cloexec(ce->name, O_RDONLY);
 
 	if (fd >= 0) {
 		struct object_id oid;
@@ -390,6 +405,8 @@ int ie_match_stat(struct index_state *istate,
 
 	if (!ignore_fsmonitor)
 		refresh_fsmonitor(istate);
+
+	fprintf(stderr, "ie_match_stat: %s\n", ce->name);
 	/*
 	 * If it's marked as always valid in the index, it's
 	 * valid whatever the checked-out copy says.
@@ -401,6 +418,8 @@ int ie_match_stat(struct index_state *istate,
 	if (!ignore_valid && (ce->ce_flags & CE_VALID))
 		return 0;
 	if (!ignore_fsmonitor && (ce->ce_flags & CE_FSMONITOR_VALID))
+		return 0;
+	if (ce->placeholder_mode == CE_PLACEHOLDER)
 		return 0;
 
 	/*
@@ -444,6 +463,7 @@ int ie_modified(struct index_state *istate,
 		struct stat *st, unsigned int options)
 {
 	int changed, changed_fs;
+	fprintf(stderr, "ie_modified: %s\n", ce->name);
 
 	changed = ie_match_stat(istate, ce, st, options);
 	if (!changed)
@@ -722,6 +742,8 @@ int add_to_index(struct index_state *istate, const char *path, struct stat *st, 
 	if (flags & ADD_CACHE_RENORMALIZE)
 		hash_flags |= HASH_RENORMALIZE;
 
+	fprintf(stderr, "add_to_index: %s\n", path);
+
 	if (!S_ISREG(st_mode) && !S_ISLNK(st_mode) && !S_ISDIR(st_mode))
 		return error(_("%s: can only add regular files, symbolic links or git-directories"), path);
 
@@ -735,6 +757,7 @@ int add_to_index(struct index_state *istate, const char *path, struct stat *st, 
 	ce = make_empty_cache_entry(istate, namelen);
 	memcpy(ce->name, path, namelen);
 	ce->ce_namelen = namelen;
+	ce->placeholder_mode = get_placeholder_mode(path);
 	if (!intent_only)
 		fill_stat_cache_info(istate, ce, st);
 	else
@@ -816,12 +839,14 @@ int add_file_to_index(struct index_state *istate, const char *path, int flags)
 
 struct cache_entry *make_empty_cache_entry(struct index_state *istate, size_t len)
 {
+	fprintf(stderr, "make_empty_cache_entry\n");
 	return mem_pool__ce_calloc(find_mem_pool(istate), len);
 }
 
 struct cache_entry *make_empty_transient_cache_entry(size_t len,
 						     struct mem_pool *ce_mem_pool)
 {
+	fprintf(stderr, "make_empty_transient_cache_entry\n");
 	if (ce_mem_pool)
 		return mem_pool__ce_calloc(ce_mem_pool, len);
 	return xcalloc(1, cache_entry_size(len));
@@ -1389,6 +1414,8 @@ static struct cache_entry *refresh_cache_ent(struct index_state *istate,
 	if (!refresh || ce_uptodate(ce))
 		return ce;
 
+	fprintf(stderr, "refresh_cache_ent: %s\n", ce->name);
+
 	if (!ignore_fsmonitor)
 		refresh_fsmonitor(istate);
 	/*
@@ -1537,6 +1564,8 @@ int refresh_index(struct index_state *istate, unsigned int flags,
 	struct progress *progress = NULL;
 	int t2_sum_lstat = 0;
 	int t2_sum_scan = 0;
+
+	fprintf(stderr, "refresh_index\n");
 
 	if (flags & REFRESH_PROGRESS && isatty(2))
 		progress = start_delayed_progress(_("Refresh index"),
@@ -2614,7 +2643,7 @@ static void ce_smudge_racily_clean_entry(struct index_state *istate,
 	 * always says "no" for gitlinks, so we are not called for them ;-)
 	 */
 	struct stat st;
-
+	fprintf(stderr, "ce_smudge_racily_clean_entry %s\n", ce->name);
 	if (lstat(ce->name, &st) < 0)
 		return;
 	if (ce_match_stat_basic(ce, &st))
@@ -3460,6 +3489,7 @@ int repo_read_index_unmerged(struct repository *repo)
 		new_ce->ce_flags = create_ce_flags(0) | CE_CONFLICTED;
 		new_ce->ce_namelen = len;
 		new_ce->ce_mode = ce->ce_mode;
+		new_ce->placeholder_mode = get_placeholder_mode(new_ce->name);
 		if (add_index_entry(istate, new_ce, ADD_CACHE_SKIP_DFCHECK))
 			return error(_("%s: cannot drop to stage #0"),
 				     new_ce->name);
@@ -3796,6 +3826,8 @@ static int read_one_entry_opt(struct index_state *istate,
 	memcpy(ce->name, base->buf, base->len);
 	memcpy(ce->name + base->len, pathname, len+1);
 	oidcpy(&ce->oid, oid);
+	ce->placeholder_mode = get_placeholder_mode(ce->name);
+
 	return add_index_entry(istate, ce, opt);
 }
 

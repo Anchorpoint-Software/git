@@ -2015,6 +2015,7 @@ static void initialize_attr_index(struct merge_options *opt)
 		ce->ce_mode = create_ce_mode(mi->result.mode);
 		ce->ce_flags = create_ce_flags(0);
 		ce->ce_namelen = len;
+		ce->placeholder_mode = get_placeholder_mode(GITATTRIBUTES_FILE);
 		oidcpy(&ce->oid, &mi->result.oid);
 		memcpy(ce->name, GITATTRIBUTES_FILE, len);
 		add_index_entry(attr_index, ce,
@@ -2035,6 +2036,7 @@ static void initialize_attr_index(struct merge_options *opt)
 			ce->ce_mode = create_ce_mode(ci->stages[stage].mode);
 			ce->ce_flags = create_ce_flags(stage);
 			ce->ce_namelen = len;
+			ce->placeholder_mode = get_placeholder_mode(GITATTRIBUTES_FILE);
 			oidcpy(&ce->oid, &ci->stages[stage].oid);
 			memcpy(ce->name, GITATTRIBUTES_FILE, len);
 			add_index_entry(attr_index, ce,

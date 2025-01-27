@@ -301,6 +301,7 @@ static struct commit *fake_working_tree_commit(struct repository *r,
 	memcpy(ce->name, path, len);
 	ce->ce_flags = create_ce_flags(0);
 	ce->ce_namelen = len;
+	ce->placeholder_mode = get_placeholder_mode(path);
 	ce->ce_mode = create_ce_mode(mode);
 	add_index_entry(r->index, ce,
 			ADD_CACHE_OK_TO_ADD | ADD_CACHE_OK_TO_REPLACE);

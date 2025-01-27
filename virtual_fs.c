@@ -1,9 +1,13 @@
 #include "virtual_fs.h"
+#include <stddef.h>
+#include <stdint.h>
 #include <WinSock2.h>
 #include <windows.h>
 #include <stdio.h>
 #include "git-compat-util.h"
 #include "abspath.h"
+#include "hash.h"
+#include "hex.h"
 
 static int execute_cli_process(const char *args[], char *outputBuffer, size_t outputBufferSize, DWORD *exitCode) 
 {
@@ -190,19 +194,25 @@ static int get_error_from_json(const char *jsonBuffer, char* errorBuffer, size_t
     return 0;
 }
 
-static int _create_placeholder(const char *path, unsigned int size) 
+static int _create_placeholder(const char *path, unsigned int size, const struct object_id *oid) 
 {
+    char oid_hex[GIT_MAX_HEXSZ + 1];
     char sizeStr[32];
     DWORD exitCode;
     int result;
     char outputBuffer[1024];
     const char *ap_cli_path = get_ap_cli_path();
-    const char *args[] = { ap_cli_path, "--json", "vfs", "create", "--path", absolute_path(path), "--size", NULL, NULL };
+    const char *args[] = { ap_cli_path, "--json", "vfs", "create", "--path", absolute_path(path), "--size", NULL, "--id", NULL, NULL };
 
-    fprintf(stderr, "create_placeholder path: %s with size: %d\n", absolute_path(path), size);
     // Convert the size to a string
     _snprintf(sizeStr, sizeof(sizeStr), "%d", size);
     args[7] = sizeStr;
+
+    // Convert the object ID to a hex string
+    oid_to_hex_r(oid_hex, oid);
+    args[9] = oid_hex;
+
+    fprintf(stderr, "create_placeholder path: %s with size: %d and id %s\n", absolute_path(path), size, oid_hex);
 
     // Execute the ap.exe process
     result = execute_cli_process(args, outputBuffer, sizeof(outputBuffer), &exitCode);
@@ -234,7 +244,7 @@ static int _is_path_virtual(const char* path) {
     int result;
     char outputBuffer[1024];
     const char *ap_cli_path = get_ap_cli_path();
-    const char *args[] = { ap_cli_path, "--json", "vfs", "virtual", "--path", absolute_path(path), NULL };
+    const char *args[] = { ap_cli_path, "--json", "vfs", "virtual", "--path", absolute_path(path),  NULL };
 
     // Execute the ap.exe process
     result = execute_cli_process(args, outputBuffer, sizeof(outputBuffer), &exitCode);
@@ -269,7 +279,15 @@ int is_path_virtual(const char* path)
     return _is_path_virtual(path);
 }
 
-int create_placeholder(const char *path, unsigned int size) 
+int create_placeholder(const char *path, unsigned int size, const struct object_id *oid) 
 {
-    return _create_placeholder(path, size);
+    if (!oid) {
+        die("create_placeholder: oid is NULL");
+    }
+
+    if (!path) {
+        die("create_placeholder: path is NULL");
+    }
+
+    return _create_placeholder(path, size, oid);
 }

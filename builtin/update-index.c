@@ -289,6 +289,8 @@ static int add_one_path(const struct cache_entry *old, const char *path, int len
 	int option;
 	struct cache_entry *ce;
 
+	fprintf(stderr, "add_one_path %s\n", path);
+
 	/* Was the old index entry already up-to-date? */
 	if (old && !ce_stage(old) && !ie_match_stat(the_repository->index, old, st, 0))
 		return 0;
@@ -299,6 +301,7 @@ static int add_one_path(const struct cache_entry *old, const char *path, int len
 	ce->ce_namelen = len;
 	fill_stat_cache_info(the_repository->index, ce, st);
 	ce->ce_mode = ce_mode_from_stat(old, st->st_mode);
+	ce->placeholder_mode = get_placeholder_mode(ce->name);
 
 	if (index_path(the_repository->index, &ce->oid, path, st,
 		       info_only ? 0 : HASH_WRITE_OBJECT)) {
@@ -437,6 +440,7 @@ static int add_cacheinfo(unsigned int mode, const struct object_id *oid,
 	ce->ce_mode = create_ce_mode(mode);
 	if (assume_unchanged)
 		ce->ce_flags |= CE_VALID;
+	ce->placeholder_mode = get_placeholder_mode(ce->name);
 	option = allow_add ? ADD_CACHE_OK_TO_ADD : 0;
 	option |= allow_replace ? ADD_CACHE_OK_TO_REPLACE : 0;
 	if (add_index_entry(the_repository->index, ce, option))
@@ -634,6 +638,7 @@ static struct cache_entry *read_one_ent(const char *which,
 	ce->ce_flags = create_ce_flags(stage);
 	ce->ce_namelen = namelen;
 	ce->ce_mode = create_ce_mode(mode);
+	ce->placeholder_mode = get_placeholder_mode(ce->name);
 	return ce;
 }
 

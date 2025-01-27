@@ -3409,6 +3409,7 @@ static int verify_index_match(struct apply_state *state,
 			return -1;
 		return 0;
 	}
+	fprintf(stderr, "verify_index_match %s\n", ce->name);
 	return ie_match_stat(state->repo->index, ce, st,
 			     CE_MATCH_IGNORE_VALID | CE_MATCH_IGNORE_SKIP_WORKTREE);
 }
@@ -4334,6 +4335,7 @@ static int add_index_file(struct apply_state *state,
 	memcpy(ce->name, path, namelen);
 	ce->ce_mode = create_ce_mode(mode);
 	ce->ce_flags = create_ce_flags(0);
+	ce->placeholder_mode = get_placeholder_mode(path);
 	ce->ce_namelen = namelen;
 	if (state->ita_only) {
 		ce->ce_flags |= CE_INTENT_TO_ADD;
@@ -4535,6 +4537,7 @@ static int add_conflicted_stages_file(struct apply_state *state,
 		memcpy(ce->name, patch->new_name, namelen);
 		ce->ce_mode = create_ce_mode(mode);
 		ce->ce_flags = create_ce_flags(stage);
+		ce->placeholder_mode = get_placeholder_mode(ce->name);
 		ce->ce_namelen = namelen;
 		oidcpy(&ce->oid, &patch->threeway_stage[stage - 1]);
 		if (add_index_entry(state->repo->index, ce, ADD_CACHE_OK_TO_ADD) < 0) {

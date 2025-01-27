@@ -646,6 +646,8 @@ static int filter_buffer_or_fd(int in UNUSED, int out, void *data)
 	/* apply % substitution to cmd */
 	struct strbuf cmd = STRBUF_INIT;
 
+	fprintf(stderr, "filter_buffer_or_fd\n");
+
 	/* expand all %f with the quoted path; quote to preserve space, etc. */
 	while (strbuf_expand_step(&cmd, &format)) {
 		if (skip_prefix(format, "%", &format))
@@ -999,6 +1001,8 @@ static int apply_filter(const char *path, const char *src, size_t len,
 			struct delayed_checkout *dco)
 {
 	const char *cmd = NULL;
+
+	fprintf(stderr, "apply_filter %s\n", path);
 
 	if (!drv)
 		return 0;
@@ -1434,6 +1438,8 @@ int convert_to_git(struct index_state *istate,
 
 	convert_attrs(istate, &ca, path);
 
+	fprintf(stderr, "convert_to_git: %s\n", path);
+
 	ret |= apply_filter(path, src, len, -1, dst, ca.drv, CAP_CLEAN, NULL, NULL);
 	if (!ret && ca.drv && ca.drv->required)
 		die(_("%s: clean filter '%s' failed"), path, ca.drv->name);
@@ -1465,6 +1471,8 @@ void convert_to_git_filter_fd(struct index_state *istate,
 {
 	struct conv_attrs ca;
 	convert_attrs(istate, &ca, path);
+
+	fprintf(stderr, "convert_to_git_filter_fd: %s\n", path);
 
 	assert(ca.drv);
 
