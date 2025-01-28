@@ -3409,7 +3409,7 @@ static int verify_index_match(struct apply_state *state,
 			return -1;
 		return 0;
 	}
-	fprintf(stderr, "verify_index_match %s\n", ce->name);
+	
 	return ie_match_stat(state->repo->index, ce, st,
 			     CE_MATCH_IGNORE_VALID | CE_MATCH_IGNORE_SKIP_WORKTREE);
 }

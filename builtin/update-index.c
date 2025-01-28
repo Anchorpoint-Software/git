@@ -289,8 +289,6 @@ static int add_one_path(const struct cache_entry *old, const char *path, int len
 	int option;
 	struct cache_entry *ce;
 
-	fprintf(stderr, "add_one_path %s\n", path);
-
 	/* Was the old index entry already up-to-date? */
 	if (old && !ce_stage(old) && !ie_match_stat(the_repository->index, old, st, 0))
 		return 0;

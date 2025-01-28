@@ -212,13 +212,8 @@ static int _create_placeholder(const char *path, unsigned int size, const struct
     oid_to_hex_r(oid_hex, oid);
     args[9] = oid_hex;
 
-    fprintf(stderr, "create_placeholder path: %s with size: %d and id %s\n", absolute_path(path), size, oid_hex);
-
     // Execute the ap.exe process
     result = execute_cli_process(args, outputBuffer, sizeof(outputBuffer), &exitCode);
-    fprintf(stderr, "create_placeholder result: %d\n", result);
-    fprintf(stderr, "create_placeholder exitCode: %lu\n", exitCode);
-    fprintf(stderr, "create_placeholder outputBuffer: %s\n", outputBuffer);
     if (result != 0) {
         error("Failed to execute ap.exe to create placeholder.");
         return -1;
@@ -235,7 +230,6 @@ static int _create_placeholder(const char *path, unsigned int size, const struct
         return -1;
     }
 
-    fprintf(stderr, "Placeholder created.\n");
     return 0;
 }
 
@@ -248,16 +242,12 @@ static int _is_path_virtual(const char* path) {
 
     // Execute the ap.exe process
     result = execute_cli_process(args, outputBuffer, sizeof(outputBuffer), &exitCode);
-    fprintf(stderr, "is_path_virtual result: %d\n", result);
-    fprintf(stderr, "is_path_virtual exitCode: %lu\n", exitCode);
-    fprintf(stderr, "is_path_virtual outputBuffer: %s\n", outputBuffer);
     if (result != 0) {
         error("Failed to execute ap.exe to check for virtual state.");
         return -1;
     }
 
     if (exitCode == 1) {
-        fprintf(stderr, "Path is virtual.\n");
         return 1; // indicates path is virtual
     } else if (exitCode != 0) {
         char errorBuffer[1024];
@@ -270,7 +260,6 @@ static int _is_path_virtual(const char* path) {
         return -1; // error
     }
 
-    fprintf(stderr, "Path is not virtual.\n");
     return 0; // path is not virtual
 }
 

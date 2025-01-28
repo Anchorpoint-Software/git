@@ -2767,8 +2767,6 @@ int index_fd(struct index_state *istate, struct object_id *oid,
 {
 	int ret;
 
-	fprintf(stderr, "index_fd: %s with flags %d\n", path, flags);
-
 	/*
 	 * Call xsize_t() only when needed to avoid potentially unnecessary
 	 * die() for large files.
@@ -2795,11 +2793,8 @@ int index_path(struct index_state *istate, struct object_id *oid,
 	struct strbuf sb = STRBUF_INIT;
 	int rc = 0;
 
-	fprintf(stderr, "index_path: %s\n", path);
-
 	if (path && (flags & HASH_WRITE_OBJECT) != HASH_WRITE_OBJECT && 
 		get_placeholder_mode(path) == CE_PLACEHOLDER) {
-		fprintf(stderr, "index_path: %s is a placeholder\n", path);
 		return rc;
 	}
 

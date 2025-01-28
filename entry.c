@@ -342,10 +342,6 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 		write_placeholder = 1;
 	}
 
-	fprintf(stderr, "write_entry: ce->placeholder_mode: %d\n", ce->placeholder_mode);
-	fprintf(stderr, "write_entry: state->clone: %s\n", state->clone ? "true" : "false");
-	fprintf(stderr, "write_entry: write_placeholder: %d\n", write_placeholder);
-
 	clone_checkout_metadata(&meta, &state->meta, &ce->oid);
 
 	if (ce_mode_s_ifmt == S_IFREG && !write_placeholder) {

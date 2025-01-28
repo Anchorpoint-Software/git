@@ -169,8 +169,6 @@ void rename_index_entry_at(struct index_state *istate, int nr, const char *new_n
 	untracked_cache_remove_from_index(istate, old_entry->name);
 	remove_index_entry_at(istate, nr);
 
-	fprintf(stderr, "rename_index_entry_at: %s -> %s\n", old_entry->name, new_entry->name);
-
 	/*
 	 * Refresh the new index entry. Using 'refresh_cache_entry' ensures
 	 * we only update stat info if the entry is otherwise up-to-date (i.e.,
@@ -240,11 +238,8 @@ static int ce_compare_data(struct index_state *istate,
 
 	if (ce->placeholder_mode == CE_PLACEHOLDER) {
 		// Do not open placeholder as it would be hydrated, always assume unchanged 
-		fprintf(stderr, "ce_compare_data: %s is a placeholder\n", ce->name);
 		return 0;
 	}
-
-	fprintf(stderr, "ce_compare_data: %s mode: %d\n", ce->name, ce->placeholder_mode);
 
 	fd = git_open_cloexec(ce->name, O_RDONLY);
 
@@ -406,7 +401,6 @@ int ie_match_stat(struct index_state *istate,
 	if (!ignore_fsmonitor)
 		refresh_fsmonitor(istate);
 
-	fprintf(stderr, "ie_match_stat: %s\n", ce->name);
 	/*
 	 * If it's marked as always valid in the index, it's
 	 * valid whatever the checked-out copy says.
@@ -463,7 +457,6 @@ int ie_modified(struct index_state *istate,
 		struct stat *st, unsigned int options)
 {
 	int changed, changed_fs;
-	fprintf(stderr, "ie_modified: %s\n", ce->name);
 
 	changed = ie_match_stat(istate, ce, st, options);
 	if (!changed)
@@ -742,8 +735,6 @@ int add_to_index(struct index_state *istate, const char *path, struct stat *st, 
 	if (flags & ADD_CACHE_RENORMALIZE)
 		hash_flags |= HASH_RENORMALIZE;
 
-	fprintf(stderr, "add_to_index: %s\n", path);
-
 	if (!S_ISREG(st_mode) && !S_ISLNK(st_mode) && !S_ISDIR(st_mode))
 		return error(_("%s: can only add regular files, symbolic links or git-directories"), path);
 
@@ -839,14 +830,12 @@ int add_file_to_index(struct index_state *istate, const char *path, int flags)
 
 struct cache_entry *make_empty_cache_entry(struct index_state *istate, size_t len)
 {
-	fprintf(stderr, "make_empty_cache_entry\n");
 	return mem_pool__ce_calloc(find_mem_pool(istate), len);
 }
 
 struct cache_entry *make_empty_transient_cache_entry(size_t len,
 						     struct mem_pool *ce_mem_pool)
 {
-	fprintf(stderr, "make_empty_transient_cache_entry\n");
 	if (ce_mem_pool)
 		return mem_pool__ce_calloc(ce_mem_pool, len);
 	return xcalloc(1, cache_entry_size(len));
@@ -890,8 +879,6 @@ struct cache_entry *make_cache_entry(struct index_state *istate,
 	ce->ce_mode = create_ce_mode(mode);
 	ce->placeholder_mode = get_placeholder_mode(path);
 
-	fprintf(stderr, "make_cache_entry: %s is placeholder %d\n", path, ce->placeholder_mode);
-
 	ret = refresh_cache_entry(istate, ce, refresh_options);
 	if (ret != ce)
 		discard_cache_entry(ce);
@@ -921,8 +908,6 @@ struct cache_entry *make_transient_cache_entry(unsigned int mode,
 	ce->ce_namelen = len;
 	ce->ce_mode = create_ce_mode(mode);
 	ce->placeholder_mode = get_placeholder_mode(path);
-
-	fprintf(stderr, "make_transient_cache_entry: %s is placeholder %d\n", path, ce->placeholder_mode);
 
 	return ce;
 }
@@ -1414,8 +1399,6 @@ static struct cache_entry *refresh_cache_ent(struct index_state *istate,
 	if (!refresh || ce_uptodate(ce))
 		return ce;
 
-	fprintf(stderr, "refresh_cache_ent: %s\n", ce->name);
-
 	if (!ignore_fsmonitor)
 		refresh_fsmonitor(istate);
 	/*
@@ -1564,8 +1547,6 @@ int refresh_index(struct index_state *istate, unsigned int flags,
 	struct progress *progress = NULL;
 	int t2_sum_lstat = 0;
 	int t2_sum_scan = 0;
-
-	fprintf(stderr, "refresh_index\n");
 
 	if (flags & REFRESH_PROGRESS && isatty(2))
 		progress = start_delayed_progress(_("Refresh index"),
@@ -2643,7 +2624,6 @@ static void ce_smudge_racily_clean_entry(struct index_state *istate,
 	 * always says "no" for gitlinks, so we are not called for them ;-)
 	 */
 	struct stat st;
-	fprintf(stderr, "ce_smudge_racily_clean_entry %s\n", ce->name);
 	if (lstat(ce->name, &st) < 0)
 		return;
 	if (ce_match_stat_basic(ce, &st))

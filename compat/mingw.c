@@ -4269,14 +4269,11 @@ int get_win32_placeholder_mode(const char *path)
 		return -1;
 	}
 
-	fprintf(stderr, "path: %s\n", path);
-
 	if (!is_valid_win32_path(path, 0)) {
 		error("invalid path '%s'", path);
 		return -1;
 	}
 
-	printf("is_git_config_file(path): %d\n", is_git_config_file(path));
 	if (is_git_config_file(path)){
 		return CE_NO_PLACEHOLDER;
 	}
@@ -4291,7 +4288,6 @@ int get_win32_placeholder_mode(const char *path)
 	}
 
 	attr = GetFileAttributesW(wpath);
-	fprintf(stderr, "attr: %d\n", attr);
 	if ((attr & INVALID_FILE_ATTRIBUTES) == INVALID_FILE_ATTRIBUTES) {
 		// file does not exist, cannot check if it is a placeholder
 		return CE_UNKNOWN_PLACEHOLDER;
