@@ -394,6 +394,7 @@ int is_path_virtual(const char* path)
     #ifdef GIT_WINDOWS_NATIVE
         return _is_path_virtual(path);
     #else
+        (void) path;
         return 0;
     #endif
 }
@@ -411,6 +412,9 @@ int create_placeholder(const char *path, unsigned int size, const struct object_
     #ifdef GIT_WINDOWS_NATIVE
         return _create_placeholder(path, size, oid);
     #else
+        (void) path;
+        (void) size;
+        (void) oid;
         die("placeholder creation not supported for this platform");
         return -1;
     #endif
@@ -425,6 +429,7 @@ int is_sync_root(const char *path)
     #ifdef GIT_WINDOWS_NATIVE
         return _is_sync_root(path);
     #else
+        (void) path;
         return 0;
     #endif
 }
