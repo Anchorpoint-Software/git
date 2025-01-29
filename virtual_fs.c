@@ -137,10 +137,87 @@ static int execute_cli_process(const char *args[], char *outputBuffer, size_t ou
     return 0;
 }
 
-static const char* get_ap_cli_path(void) 
-{
-    // fix
-    return "C:\\Users\\joche\\Documents\\Development\\anchorpoint\\ap-desktop\\build\\Debug\\ap.exe";
+static void normalize_directory_name(char *path) {
+    size_t len = strlen(path);
+    if (len > 0 && path[len - 1] == '\\') {
+        path[len - 1] = '\0';
+    }
+}
+
+static int compare_versions(const void *a, const void *b) {
+    const char *verA = *(const char **)a;
+    const char *verB = *(const char **)b;
+
+    int numA[3] = {0}, numB[3] = {0};
+    if (sscanf(verA, "%d.%d.%d", &numA[0], &numA[1], &numA[2]) < 1) return -1;
+    if (sscanf(verB, "%d.%d.%d", &numB[0], &numB[1], &numB[2]) < 1) return 1;
+
+    for (int i = 0; i < 3; i++) {
+        if (numA[i] < numB[i]) return -1;
+        if (numA[i] > numB[i]) return 1;
+    }
+    return 0;
+}
+
+static char *get_install_folder(void) {
+    static char installDirectory[1024] = "";
+
+    if (strlen(installDirectory) == 0) {
+        #ifndef GIT_WINDOWS_NATIVE
+            strcpy(installDirectory, "/Applications/Anchorpoint.app/Contents/Frameworks");
+        #else
+            char anchorpointVersionsPath[1024];
+            char *anchorpointVersions[256];
+            char *localAppData = getenv("LOCALAPPDATA");
+            int count = 0;
+            struct dirent *entry;
+            DIR *dir = NULL;
+
+            if (!localAppData) {
+                return NULL;
+            }
+            
+            snprintf(anchorpointVersionsPath, sizeof(anchorpointVersionsPath), "%s\\Anchorpoint", localAppData);
+
+            dir = opendir(anchorpointVersionsPath);
+            if (!dir) return NULL;
+
+            while ((entry = readdir(dir)) != NULL) {
+                if (entry->d_name[0] == '.' || strlen(entry->d_name) < 4 || strncmp(entry->d_name, "app-", 4) != 0) continue;
+                anchorpointVersions[count++] = strdup(entry->d_name);
+            }
+            closedir(dir);
+
+            if (count == 0) return NULL;
+
+            qsort(anchorpointVersions, count, sizeof(char *), compare_versions);
+
+            snprintf(installDirectory, sizeof(installDirectory), "%s\\%s", anchorpointVersionsPath, anchorpointVersions[count - 1]);
+            normalize_directory_name(installDirectory);
+
+            for (int i = 0; i < count; i++) free(anchorpointVersions[i]);
+        #endif
+    }
+    return installDirectory;
+}
+
+static char *get_ap_cli_path(void) {
+    static char cliPath[1024] = "";
+    
+    if (strlen(cliPath) == 0) {
+        const char *installFolder = get_install_folder();
+        if (strlen(installFolder) == 0) return NULL;
+    
+        #ifdef GIT_WINDOWS_NATIVE
+            snprintf(cliPath, sizeof(cliPath), "%s\\ap.exe", installFolder);
+        #else
+            snprintf(cliPath, sizeof(cliPath), "%s/ap", installFolder);
+        #endif
+    }
+
+    fprintf(stderr, "CLI Path: %s\n", cliPath);
+
+    return cliPath;
 }
 
 static int get_error_from_json(const char *jsonBuffer, char* errorBuffer, size_t errorBufferSize) 
@@ -204,6 +281,10 @@ static int _create_placeholder(const char *path, unsigned int size, const struct
     const char *ap_cli_path = get_ap_cli_path();
     const char *args[] = { ap_cli_path, "--json", "vfs", "create", "--path", absolute_path(path), "--size", NULL, "--id", NULL, NULL };
 
+    if (strlen(ap_cli_path) == 0) {
+        return -1;
+    }
+
     // Convert the size to a string
     _snprintf(sizeStr, sizeof(sizeStr), "%d", size);
     args[7] = sizeStr;
@@ -240,6 +321,10 @@ static int _is_path_virtual(const char* path) {
     const char *ap_cli_path = get_ap_cli_path();
     const char *args[] = { ap_cli_path, "--json", "vfs", "virtual", "--path", absolute_path(path),  NULL };
 
+    if (strlen(ap_cli_path) == 0) {
+        return -1;
+    }
+
     // Execute the ap.exe process
     result = execute_cli_process(args, outputBuffer, sizeof(outputBuffer), &exitCode);
     if (result != 0) {
@@ -271,6 +356,10 @@ static int _is_sync_root(const char *path)
     const char *ap_cli_path = get_ap_cli_path();
     const char *args[] = { ap_cli_path, "--json", "vfs", "syncroot", "--path", absolute_path(path),  NULL };
 
+    if (strlen(ap_cli_path) == 0) {
+        return -1;
+    }
+
     // Execute the ap.exe process
     result = execute_cli_process(args, outputBuffer, sizeof(outputBuffer), &exitCode);
     if (result != 0) {
@@ -284,9 +373,9 @@ static int _is_sync_root(const char *path)
         char errorBuffer[1024];
         int errorResult = get_error_from_json(outputBuffer, errorBuffer, sizeof(errorBuffer));
         if (errorResult == 0) {
-            die("Failed to check if path is under a sync root. Error: %s", errorBuffer);
+            error("Failed to check if path is under a sync root. Error: %s", errorBuffer);
         } else {
-            die("Failed to check if path is under a sync root. ap.exe exited with code %lu.", exitCode);
+            error("Failed to check if path is under a sync root. ap.exe exited with code %lu.", exitCode);
         }
         return -1; // error
     }
