@@ -209,7 +209,7 @@ static char *get_ap_cli_path(void) {
     
     if (strlen(cliPath) == 0) {
         const char *installFolder = get_install_folder();
-        if (strlen(installFolder) == 0) return NULL;
+        if (!installFolder || strlen(installFolder) == 0) return NULL;
     
         #ifdef GIT_WINDOWS_NATIVE
             snprintf(cliPath, sizeof(cliPath), "%s\\ap.exe", installFolder);
@@ -282,7 +282,7 @@ static int _create_placeholder(const char *path, unsigned int size, const struct
     const char *ap_cli_path = get_ap_cli_path();
     const char *args[] = { ap_cli_path, "--json", "vfs", "create", "--path", absolute_path(path), "--size", NULL, "--id", NULL, NULL };
 
-    if (strlen(ap_cli_path) == 0) {
+    if (!ap_cli_path || strlen(ap_cli_path) == 0) {
         return -1;
     }
 
@@ -322,7 +322,7 @@ static int _is_path_virtual(const char* path) {
     const char *ap_cli_path = get_ap_cli_path();
     const char *args[] = { ap_cli_path, "--json", "vfs", "virtual", "--path", absolute_path(path),  NULL };
 
-    if (strlen(ap_cli_path) == 0) {
+    if (!ap_cli_path || strlen(ap_cli_path) == 0) {
         return -1;
     }
 
@@ -357,7 +357,7 @@ static int _is_sync_root(const char *path)
     const char *ap_cli_path = get_ap_cli_path();
     const char *args[] = { ap_cli_path, "--json", "vfs", "syncroot", "--path", absolute_path(path),  NULL };
 
-    if (strlen(ap_cli_path) == 0) {
+    if (!ap_cli_path || strlen(ap_cli_path) == 0) {
         return -1;
     }
 
