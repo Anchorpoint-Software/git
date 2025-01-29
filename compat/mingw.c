@@ -4269,6 +4269,10 @@ int get_win32_placeholder_mode(const char *path)
 		return -1;
 	}
 
+	if (!the_repository->under_sync_root) {
+		return CE_NO_PLACEHOLDER;
+	}
+
 	if (!is_valid_win32_path(path, 0)) {
 		error("invalid path '%s'", path);
 		return -1;

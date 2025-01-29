@@ -263,8 +263,44 @@ static int _is_path_virtual(const char* path) {
     return 0; // path is not virtual
 }
 
+static int _is_sync_root(const char *path) 
+{
+    DWORD exitCode;
+    int result;
+    char outputBuffer[1024];
+    const char *ap_cli_path = get_ap_cli_path();
+    const char *args[] = { ap_cli_path, "--json", "vfs", "syncroot", "--path", absolute_path(path),  NULL };
+
+    // Execute the ap.exe process
+    result = execute_cli_process(args, outputBuffer, sizeof(outputBuffer), &exitCode);
+    if (result != 0) {
+        error("Failed to execute ap.exe to check for sync root state.");
+        return -1;
+    }
+
+    if (exitCode == 1) {
+        return 1; // indicates path is under a sync root
+    } else if (exitCode != 0) {
+        char errorBuffer[1024];
+        int errorResult = get_error_from_json(outputBuffer, errorBuffer, sizeof(errorBuffer));
+        if (errorResult == 0) {
+            die("Failed to check if path is under a sync root. Error: %s", errorBuffer);
+        } else {
+            die("Failed to check if path is under a sync root. ap.exe exited with code %lu.", exitCode);
+        }
+        return -1; // error
+    }
+
+    return 0; // path is not under a sync root
+}
+
+
 int is_path_virtual(const char* path) 
 {
+    if (!path) {
+        die("is_path_virtual: path is NULL");
+    }
+
     return _is_path_virtual(path);
 }
 
@@ -279,4 +315,13 @@ int create_placeholder(const char *path, unsigned int size, const struct object_
     }
 
     return _create_placeholder(path, size, oid);
+}
+
+int is_sync_root(const char *path)
+{
+    if (!path) {
+        die("is_sync_root: path is NULL");
+    }
+
+    return _is_sync_root(path);
 }

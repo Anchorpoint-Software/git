@@ -2224,7 +2224,7 @@ static int verify_uptodate_1(const struct cache_entry *ce,
 
 	if (o->index_only)
 		return 0;
-	fprintf(stderr, "Checking file %s for update, verify_uptodate_1\n", ce->name);
+	
 	/*
 	 * CE_VALID and CE_SKIP_WORKTREE cheat, we better check again
 	 * if this entry is truly up-to-date because this file may be
@@ -2401,7 +2401,6 @@ static int verify_clean_subdirectory(const struct cache_entry *ce,
 static int icase_exists(struct unpack_trees_options *o, const char *name, int len, struct stat *st)
 {
 	const struct cache_entry *src;
-	fprintf(stderr, "Checking file %s for icase_exists\n", name);
 	src = index_file_exists(o->src_index, name, len, 1);
 	return src && !ie_match_stat(o->src_index, src, st, CE_MATCH_IGNORE_VALID|CE_MATCH_IGNORE_SKIP_WORKTREE);
 }
@@ -3020,8 +3019,6 @@ int oneway_merge(const struct cache_entry * const *src,
 {
 	const struct cache_entry *old = src[0];
 	const struct cache_entry *a = src[1];
-
-	fprintf(stderr, "oneway_merge\n");
 
 	if (o->internal.merge_size != 1)
 		return error("Cannot do a oneway merge of %d trees",

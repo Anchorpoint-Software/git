@@ -5,5 +5,6 @@ struct object_id;
 
 int is_path_virtual(const char* path);
 int create_placeholder(const char *path, unsigned int size, const struct object_id *oid);
+int is_sync_root(const char *path);
 
 #endif

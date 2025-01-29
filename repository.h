@@ -153,6 +153,9 @@ struct repository {
 
 	/* Indicate if a repository has a different 'commondir' from 'gitdir' */
 	unsigned different_commondir:1;
+
+	/* Indicate if the repository workree is under a cloud files sync root */
+	unsigned under_sync_root:1;
 };
 
 #ifdef USE_THE_REPOSITORY_VARIABLE
