@@ -550,6 +550,14 @@ static inline void warn_about_git_lfs_on_windows7(int exit_code UNUSED,
 
 #ifndef is_valid_path
 #define is_valid_path(path) 1
+#endif 
+
+#ifndef is_virtual_path
+#define is_virtual_path(path) 0
+#endif
+
+#ifndef get_placeholder_mode
+#define get_placeholder_mode(path) 1 /* CE_NO_PLACEHOLDER */
 #endif
 
 #ifndef is_path_owned_by_current_user

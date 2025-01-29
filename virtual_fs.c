@@ -1,13 +1,16 @@
 #include "virtual_fs.h"
+
+#include "git-compat-util.h"
+
+#ifdef GIT_WINDOWS_NATIVE
 #include <stddef.h>
 #include <stdint.h>
-#include <WinSock2.h>
-#include <windows.h>
 #include <stdio.h>
-#include "git-compat-util.h"
 #include "abspath.h"
 #include "hash.h"
 #include "hex.h"
+
+#include <windows.h>
 
 static int execute_cli_process(const char *args[], char *outputBuffer, size_t outputBufferSize, DWORD *exitCode) 
 {
@@ -215,8 +218,6 @@ static char *get_ap_cli_path(void) {
         #endif
     }
 
-    fprintf(stderr, "CLI Path: %s\n", cliPath);
-
     return cliPath;
 }
 
@@ -382,7 +383,7 @@ static int _is_sync_root(const char *path)
 
     return 0; // path is not under a sync root
 }
-
+#endif
 
 int is_path_virtual(const char* path) 
 {
@@ -390,7 +391,11 @@ int is_path_virtual(const char* path)
         die("is_path_virtual: path is NULL");
     }
 
-    return _is_path_virtual(path);
+    #ifdef GIT_WINDOWS_NATIVE
+        return _is_path_virtual(path);
+    #else
+        return 0;
+    #endif
 }
 
 int create_placeholder(const char *path, unsigned int size, const struct object_id *oid) 
@@ -403,7 +408,12 @@ int create_placeholder(const char *path, unsigned int size, const struct object_
         die("create_placeholder: path is NULL");
     }
 
-    return _create_placeholder(path, size, oid);
+    #ifdef GIT_WINDOWS_NATIVE
+        return _create_placeholder(path, size, oid);
+    #else
+        die("placeholder creation not supported for this platform");
+        return -1;
+    #endif
 }
 
 int is_sync_root(const char *path)
@@ -412,5 +422,9 @@ int is_sync_root(const char *path)
         die("is_sync_root: path is NULL");
     }
 
-    return _is_sync_root(path);
+    #ifdef GIT_WINDOWS_NATIVE
+        return _is_sync_root(path);
+    #else
+        return 0;
+    #endif
 }
