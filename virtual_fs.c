@@ -164,8 +164,12 @@ static int compare_versions(const void *a, const void *b) {
 
 static char *get_install_folder(void) {
     static char installDirectory[1024] = "";
-
-    if (strlen(installDirectory) == 0) {
+    char *installOverwrite = getenv("ANCHORPOINT_ROOT");
+    if (installOverwrite) {
+        strlcpy(installDirectory, installOverwrite, sizeof(installDirectory));
+        // TODO: path must be /../Frameworks
+        normalize_directory_name(installDirectory);
+    } else if (strlen(installDirectory) == 0) {
         #ifndef GIT_WINDOWS_NATIVE
             strcpy(installDirectory, "/Applications/Anchorpoint.app/Contents/Frameworks");
         #else
