@@ -228,13 +228,13 @@ static int get_error_from_json(const char *jsonBuffer, char* errorBuffer, size_t
     const char* key = "\"error\"";
     const char* value_start = NULL;
 
-    if (jsonBuffer == NULL) { 
+    if (!jsonBuffer) { 
         return -1; 
     }
 
     key_pos = strstr(jsonBuffer, key); // Find the "error" key
 
-    if (key_pos == NULL) {
+    if (!key_pos) {
         return -2; // Key not found
     }
 
