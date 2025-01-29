@@ -508,7 +508,7 @@ void setup_work_tree(void)
 	if (getenv(GIT_WORK_TREE_ENVIRONMENT))
 		setenv(GIT_WORK_TREE_ENVIRONMENT, ".", 1);
 
-	the_repository->under_sync_root = is_sync_root(work_tree);
+	the_repository->under_sync_root = is_sync_root(work_tree) == 1 ? 1 : 0;
 
 	initialized = 1;
 }
