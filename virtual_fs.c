@@ -1,144 +1,13 @@
 #include "virtual_fs.h"
 
 #include "git-compat-util.h"
-
-#ifdef GIT_WINDOWS_NATIVE
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include "abspath.h"
-#include "hash.h"
+#include "thread-utils.h"
+#include "run-command.h"
+#include "strvec.h"
+#include "strbuf.h"
+#include "sigchain.h"
 #include "hex.h"
-
-#include <windows.h>
-
-static int execute_cli_process(const char *args[], char *outputBuffer, size_t outputBufferSize, DWORD *exitCode) 
-{
-    HANDLE hStdoutReadPipe, hStdoutWritePipe;
-    HANDLE hStderrReadPipe, hStderrWritePipe;
-    SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), NULL, TRUE };
-    PROCESS_INFORMATION pi = { 0 };
-    STARTUPINFO si = { 0 };
-    DWORD bytesRead = 0;
-    BOOL success;
-    char *commandLine;
-    size_t commandLineLength = 0;
-
-    // Calculate total length for the command line
-    for (size_t i = 0; args[i] != NULL; i++) {
-        commandLineLength += strlen(args[i]) + 3; // Add space for quotes and space
-    }
-
-    // Allocate memory for the command line
-    commandLine = (char *)malloc(commandLineLength + 1);
-    if (!commandLine) {
-        error("Failed to allocate memory for ap.exe command line.");
-        return -1;
-    }
-    commandLine[0] = '\0';
-
-    // Construct the command line
-    for (size_t i = 0; args[i] != NULL; i++) {
-        snprintf(commandLine + strlen(commandLine), commandLineLength - strlen(commandLine), "\"%s\" ", args[i]);
-    }
-
-    // Create pipes for stdout and stderr
-    if (!CreatePipe(&hStdoutReadPipe, &hStdoutWritePipe, &sa, 0) ||
-        !CreatePipe(&hStderrReadPipe, &hStderrWritePipe, &sa, 0)) {
-        error("Failed to create pipes. Error: %lu", GetLastError());
-        free(commandLine);
-        return -1;
-    }
-
-    // Ensure read handles are not inherited
-    if (!SetHandleInformation(hStdoutReadPipe, HANDLE_FLAG_INHERIT, 0) ||
-        !SetHandleInformation(hStderrReadPipe, HANDLE_FLAG_INHERIT, 0)) {
-        error("Failed to set pipe handle information. Error: %lu", GetLastError());
-        CloseHandle(hStdoutReadPipe);
-        CloseHandle(hStdoutWritePipe);
-        CloseHandle(hStderrReadPipe);
-        CloseHandle(hStderrWritePipe);
-        free(commandLine);
-        return -1;
-    }
-
-    // Configure STARTUPINFO to redirect stdout and stderr
-    si.cb = sizeof(STARTUPINFO);
-    si.hStdOutput = hStdoutWritePipe;
-    si.hStdError = hStderrWritePipe;
-    si.dwFlags |= STARTF_USESTDHANDLES;
-
-    // Create the process
-    success = CreateProcess(
-        NULL,               // Application name
-        commandLine,        // Command line
-        NULL,               // Process security attributes
-        NULL,               // Thread security attributes
-        TRUE,               // Inherit handles
-        CREATE_NO_WINDOW,   // Creation flags to prevent console window
-        NULL,               // Environment
-        NULL,               // Current directory
-        &si,                // Startup info
-        &pi                 // Process information
-    );
-
-    // Close write pipes in parent process
-    CloseHandle(hStdoutWritePipe);
-    CloseHandle(hStderrWritePipe);
-    free(commandLine);
-
-    if (!success) {
-        CloseHandle(hStdoutReadPipe);
-        CloseHandle(hStderrReadPipe);
-        return -1;
-    }
-
-    // Read from stderr pipe
-    bytesRead = 0;
-    while (TRUE) {
-        DWORD bytesAvailable = 0;
-        DWORD chunkSize = 0;
-        DWORD readBytes = 0;
-
-        if (!PeekNamedPipe(hStderrReadPipe, NULL, 0, NULL, &bytesAvailable, NULL)) 
-            break;
-
-        if (bytesAvailable == 0) {
-            // No data, wait a bit or break
-            Sleep(10);
-            continue;
-        }
-
-        chunkSize = min(bytesAvailable, outputBufferSize - bytesRead - 1);
-        if (!ReadFile(hStderrReadPipe, outputBuffer + bytesRead, chunkSize, &readBytes, NULL)) 
-            break;
-
-        bytesRead += readBytes;
-        if (bytesRead >= outputBufferSize - 1) break;
-    }
-
-    // Null-terminate the error buffer
-    outputBuffer[bytesRead] = '\0';
-
-    // Wait for the process to complete and retrieve the exit code
-    WaitForSingleObject(pi.hProcess, INFINITE);
-    if (!GetExitCodeProcess(pi.hProcess, exitCode)) {
-        error("Failed to get exit code for ap.exe. Error: %lu", GetLastError());
-        CloseHandle(hStdoutReadPipe);
-        CloseHandle(hStderrReadPipe);
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
-        return -1;
-    }
-
-    // Clean up
-    CloseHandle(hStdoutReadPipe);
-    CloseHandle(hStderrReadPipe);
-    CloseHandle(pi.hProcess);
-    CloseHandle(pi.hThread);
-
-    return 0;
-}
+#include "abspath.h"
 
 static void normalize_directory_name(char *path) {
     size_t len = strlen(path);
@@ -225,215 +94,206 @@ static char *get_ap_cli_path(void) {
     return cliPath;
 }
 
-static int get_error_from_json(const char *jsonBuffer, char* errorBuffer, size_t errorBufferSize) 
+struct ap_process {
+    struct child_process cmd;
+    int initialized;
+    pthread_mutex_t mutex;
+    FILE *in;
+    FILE *out;
+    const char *path;
+};
+
+static struct ap_process ap = {.cmd = CHILD_PROCESS_INIT, .initialized = 0, .in = NULL, .out = NULL, .path = NULL};
+
+static void subprocess_exit_handler(struct child_process *process)
 {
-    size_t value_length;
-    char* key_pos = NULL;
-    const char* key = "\"error\"";
-    const char* value_start = NULL;
+	sigchain_push(SIGPIPE, SIG_IGN);
+	close(process->in);
+	close(process->out);
+	sigchain_pop(SIGPIPE);
 
-    if (!jsonBuffer) { 
-        return -1; 
+    if (ap.in)
+		fclose(ap.in);
+
+    if (ap.out)
+		fclose(ap.out);
+}
+
+void init_anchorpoint_mutex(void)
+{
+    init_recursive_mutex(&ap.mutex);
+}
+
+int init_anchorpoint_process(void) 
+{
+    pthread_mutex_lock(&ap.mutex);
+    if (ap.initialized) {
+        pthread_mutex_unlock(&ap.mutex);
+        return 0;
     }
 
-    key_pos = strstr(jsonBuffer, key); // Find the "error" key
+    ap.path = get_ap_cli_path();
 
-    if (!key_pos) {
-        return -2; // Key not found
+    strvec_pushl(&ap.cmd.args, ap.path, "vfs", "connect", NULL);
+	ap.cmd.in = -1;
+	ap.cmd.out = -1;
+    ap.cmd.err = -1;
+    
+    ap.cmd.use_shell = 0;
+    ap.cmd.git_cmd = 0;
+    ap.cmd.close_object_store = 0;
+    ap.cmd.silent_exec_failure = 0;
+
+    ap.cmd.clean_on_exit = 1;
+	ap.cmd.clean_on_exit_handler = subprocess_exit_handler;
+
+    if (start_command(&ap.cmd)) {
+        die("Failed to run ap.exe process.");
     }
 
-    // Move to the value after the key
-    key_pos += strlen(key);
+    ap.in = fdopen(ap.cmd.in, "w");
+	if (!ap.in) {
+        die("Failed to open file descriptor for writing to ap.exe.");
+	}
 
-    // Skip whitespace and the colon
-    while (*key_pos && (isspace((unsigned char)*key_pos) || *key_pos == ':')) {
-        key_pos++;
-    }
+	ap.out = fdopen(ap.cmd.out, "r");
+	if (!ap.out) {
+        die("Failed to open file descriptor for reading from ap.exe.");
+	}
 
-    // Check if the value is a string
-    if (*key_pos != '\"') {
-        return -3; // Not a valid string value
-    }
-
-    // Extract the value between the quotes
-    key_pos++; // Skip the opening quote
-    value_start = key_pos;
-    while (*key_pos && *key_pos != '\"') {
-        key_pos++;
-    }
-
-    if (*key_pos != '\"') {
-        return -4; // Closing quote not found
-    }
-
-    value_length = key_pos - value_start;
-    if (value_length >= errorBufferSize) {
-        return -5; // Buffer too small
-    }
-
-    snprintf(errorBuffer, errorBufferSize, "%.*s", (int)value_length, value_start);
-
+    ap.initialized = 1;
+    pthread_mutex_unlock(&ap.mutex);
     return 0;
 }
-
-static int _create_placeholder(const char *path, unsigned int size, const struct object_id *oid) 
-{
-    char oid_hex[GIT_MAX_HEXSZ + 1];
-    char sizeStr[32];
-    DWORD exitCode;
-    int result;
-    char outputBuffer[1024];
-    const char *ap_cli_path = get_ap_cli_path();
-    const char *args[] = { ap_cli_path, "--json", "vfs", "create", "--path", absolute_path(path), "--size", NULL, "--id", NULL, NULL };
-
-    if (!ap_cli_path || strlen(ap_cli_path) == 0) {
-        return -1;
-    }
-
-    // Convert the size to a string
-    _snprintf(sizeStr, sizeof(sizeStr), "%d", size);
-    args[7] = sizeStr;
-
-    // Convert the object ID to a hex string
-    oid_to_hex_r(oid_hex, oid);
-    args[9] = oid_hex;
-
-    // Execute the ap.exe process
-    result = execute_cli_process(args, outputBuffer, sizeof(outputBuffer), &exitCode);
-    if (result != 0) {
-        error("Failed to execute ap.exe to create placeholder.");
-        return -1;
-    }
-
-    if (exitCode != 0) {
-        char errorBuffer[1024];
-        int errorResult = get_error_from_json(outputBuffer, errorBuffer, sizeof(errorBuffer));
-        if (errorResult == 0) {
-            error("Failed to create placeholder. Error: %s", errorBuffer);
-        } else {
-            error("Failed to create placeholder. ap.exe exited with code %lu.", exitCode);
-        }
-        return -1;
-    }
-
-    return 0;
-}
-
-static int _is_path_virtual(const char* path) {
-    DWORD exitCode;
-    int result;
-    char outputBuffer[1024];
-    const char *ap_cli_path = get_ap_cli_path();
-    const char *args[] = { ap_cli_path, "--json", "vfs", "virtual", "--path", absolute_path(path),  NULL };
-
-    if (!ap_cli_path || strlen(ap_cli_path) == 0) {
-        return -1;
-    }
-
-    // Execute the ap.exe process
-    result = execute_cli_process(args, outputBuffer, sizeof(outputBuffer), &exitCode);
-    if (result != 0) {
-        error("Failed to execute ap.exe to check for virtual state.");
-        return -1;
-    }
-
-    if (exitCode == 1) {
-        return 1; // indicates path is virtual
-    } else if (exitCode != 0) {
-        char errorBuffer[1024];
-        int errorResult = get_error_from_json(outputBuffer, errorBuffer, sizeof(errorBuffer));
-        if (errorResult == 0) {
-            error("Failed to check for virtual path. Error: %s", errorBuffer);
-        } else {
-            error("Failed to check for virtual path. ap.exe exited with code %lu.", exitCode);
-        }
-        return -1; // error
-    }
-
-    return 0; // path is not virtual
-}
-
-static int _is_sync_root(const char *path) 
-{
-    DWORD exitCode;
-    int result;
-    char outputBuffer[1024];
-    const char *ap_cli_path = get_ap_cli_path();
-    const char *args[] = { ap_cli_path, "--json", "vfs", "syncroot", "--path", absolute_path(path),  NULL };
-
-    if (!ap_cli_path || strlen(ap_cli_path) == 0) {
-        return -1;
-    }
-
-    // Execute the ap.exe process
-    result = execute_cli_process(args, outputBuffer, sizeof(outputBuffer), &exitCode);
-    if (result != 0) {
-        error("Failed to execute ap.exe to check for sync root state.");
-        return -1;
-    }
-
-    if (exitCode == 1) {
-        return 1; // indicates path is under a sync root
-    } else if (exitCode != 0) {
-        char errorBuffer[1024];
-        int errorResult = get_error_from_json(outputBuffer, errorBuffer, sizeof(errorBuffer));
-        if (errorResult == 0) {
-            error("Failed to check if path is under a sync root. Error: %s", errorBuffer);
-        } else {
-            error("Failed to check if path is under a sync root. ap.exe exited with code %lu.", exitCode);
-        }
-        return -1; // error
-    }
-
-    return 0; // path is not under a sync root
-}
-#endif
 
 int is_path_virtual(const char* path) 
 {
+    int is_virtual = 0;
+    struct strbuf line = STRBUF_INIT;
     if (!path) {
         die("is_path_virtual: path is NULL");
     }
 
-    #ifdef GIT_WINDOWS_NATIVE
-        return _is_path_virtual(path);
-    #else
-        (void) path;
-        return 0;
-    #endif
+    pthread_mutex_lock(&ap.mutex);
+
+    if (!ap.initialized) {
+        if (init_anchorpoint_process()) {
+            die("is_path_virtual: ap.exe process not initialized");
+        }
+    }
+
+    fprintf(stderr, "Checking if path is virtual: %s\n", absolute_path(path));
+    fprintf(ap.in, "virtual\n");
+    fprintf(ap.in, "%s\n", absolute_path(path));
+    fflush(ap.in);
+
+    while (!strbuf_getline(&line, ap.out)) {
+		if (!line.len)
+			break;
+		if (!strcmp(line.buf, "1")) {
+			is_virtual = 1;
+            break;
+        }
+        if (!strcmp(line.buf, "0")) {
+			is_virtual = 0;
+            break;
+        }
+
+        // error
+        error("Failed to check if path is virtual: %s.", line.buf);
+        break;
+    }
+
+    pthread_mutex_unlock(&ap.mutex);
+    return is_virtual;
 }
 
 int create_placeholder(const char *path, unsigned int size, const struct object_id *oid) 
 {
+    int success = 0;
+    struct strbuf line = STRBUF_INIT;
+    if (!path) {
+        die("create_placeholder: path is NULL");
+    }
     if (!oid) {
         die("create_placeholder: oid is NULL");
     }
 
-    if (!path) {
-        die("create_placeholder: path is NULL");
+    pthread_mutex_lock(&ap.mutex);
+
+    if (!ap.initialized) {
+        if (init_anchorpoint_process()) {
+            die("create_placeholder: ap.exe process not initialized");
+        }
     }
 
-    #ifdef GIT_WINDOWS_NATIVE
-        return _create_placeholder(path, size, oid);
-    #else
-        (void) path;
-        (void) size;
-        (void) oid;
-        die("placeholder creation not supported for this platform");
-        return -1;
-    #endif
+    fprintf(stderr, "Creating placeholder: %s\n", absolute_path(path));
+    fprintf(ap.in, "placeholder\n");
+    fprintf(ap.in, "%s\n", absolute_path(path));
+    fprintf(ap.in, "%d\n", size);
+    fprintf(ap.in, "%s\n", oid_to_hex(oid));
+    fflush(ap.in);
+
+    while (!strbuf_getline(&line, ap.out)) {
+		if (!line.len)
+			break;
+		if (!strcmp(line.buf, "1")) {
+			success = 1;
+            break;
+        }
+        if (!strcmp(line.buf, "0")) {
+			success = 0;
+            break;
+        }
+
+        // error
+        error("Failed to create placeholder: %s.", line.buf);
+        break;
+    }
+
+    pthread_mutex_unlock(&ap.mutex);
+    return success;
 }
 
 int is_sync_root(const char *path)
 {
+    int is_sync_root = 0;
+    struct strbuf line = STRBUF_INIT;
     if (!path) {
         die("is_sync_root: path is NULL");
     }
 
-    #ifdef GIT_WINDOWS_NATIVE
-        return _is_sync_root(path);
-    #else
-        (void) path;
-        return 0;
-    #endif
+    pthread_mutex_lock(&ap.mutex);
+
+    if (!ap.initialized) {
+        if (init_anchorpoint_process()) {
+            die("is_sync_root: ap.exe process not initialized");
+        }
+    }
+
+    fprintf(stderr, "Checking if path is sync root: %s\n", absolute_path(path));
+    fprintf(ap.in, "syncroot\n");
+    fprintf(ap.in, "%s\n", absolute_path(path));
+    fflush(ap.in);
+
+    while (!strbuf_getline(&line, ap.out)) {
+		if (!line.len)
+			break;
+
+		if (!strcmp(line.buf, "1")) {
+			is_sync_root = 1;
+            break;
+        }
+        if (!strcmp(line.buf, "0")) {
+			is_sync_root = 0;
+            break;
+        }
+
+        // error
+        error("Failed to check if path is sync root: %s.", line.buf);
+        break;
+    }
+
+    pthread_mutex_unlock(&ap.mutex);
+    return is_sync_root;
 }
