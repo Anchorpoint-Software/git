@@ -226,7 +226,6 @@ int create_placeholder(const char *path, unsigned int size, const struct object_
         }
     }
 
-    fprintf(stderr, "Creating placeholder: %s\n", absolute_path(path));
     fprintf(ap.in, "placeholder\n");
     fprintf(ap.in, "%s\n", absolute_path(path));
     fprintf(ap.in, "%d\n", size);

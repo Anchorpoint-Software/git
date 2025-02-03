@@ -413,7 +413,14 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 								size, &buf, &meta);
 			}
 		} else {
-			create_placeholder(ce->name, get_real_size(ce, size), &ce->oid);
+			if (!create_placeholder(ce->name, get_real_size(ce, size), &ce->oid)) {
+				// retry but without placeholder
+				ce->placeholder_mode = CE_NO_PLACEHOLDER;
+				free(new_blob);
+				warning("failed to write placeholder %s\n", path);
+				return write_entry(ce, path, ca, state, to_tempfile, nr_checkouts);
+			}
+
 			ce->placeholder_mode = CE_PLACEHOLDER;
 			free(new_blob);
 			goto finish;
