@@ -182,7 +182,6 @@ int is_path_virtual(const char* path)
         }
     }
 
-    fprintf(stderr, "Checking if path is virtual: %s\n", absolute_path(path));
     fprintf(ap.in, "virtual\n");
     fprintf(ap.in, "%s\n", absolute_path(path));
     fflush(ap.in);
@@ -271,7 +270,6 @@ int is_sync_root(const char *path)
         }
     }
 
-    fprintf(stderr, "Checking if path is sync root: %s\n", absolute_path(path));
     fprintf(ap.in, "syncroot\n");
     fprintf(ap.in, "%s\n", absolute_path(path));
     fflush(ap.in);
