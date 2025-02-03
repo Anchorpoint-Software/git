@@ -82,15 +82,24 @@ static char *get_install_folder(void) {
 static char *get_ap_cli_path(void) {
     static char cliPath[1024] = "";
     
-    if (strlen(cliPath) == 0) {
+    if (cliPath[0] == '\0') { // Check if uninitialized
         const char *installFolder = get_install_folder();
-        if (!installFolder || strlen(installFolder) == 0) return NULL;
-    
-        #ifdef GIT_WINDOWS_NATIVE
-            snprintf(cliPath, sizeof(cliPath), "%s\\ap.exe", installFolder);
-        #else
-            snprintf(cliPath, sizeof(cliPath), "%s/ap", installFolder);
-        #endif
+        int written = -1;
+        if (!installFolder || *installFolder == '\0') return NULL;
+
+        written = snprintf(cliPath, sizeof(cliPath), "%s%s", installFolder,
+            #ifdef GIT_WINDOWS_NATIVE
+                "\\ap.exe"
+            #else
+                "/ap"
+            #endif
+        );
+
+        // Check if truncation occurred
+        if (written < 0 || written >= sizeof(cliPath)) {
+            cliPath[0] = '\0';  // Invalidate the buffer
+            return NULL;        // Indicate failure
+        }
     }
 
     return cliPath;
