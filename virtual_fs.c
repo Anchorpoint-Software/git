@@ -16,6 +16,7 @@ static void normalize_directory_name(char *path) {
     }
 }
 
+#ifdef GIT_WINDOWS_NATIVE
 static int compare_versions(const void *a, const void *b) {
     const char *verA = *(const char **)a;
     const char *verB = *(const char **)b;
@@ -30,6 +31,7 @@ static int compare_versions(const void *a, const void *b) {
     }
     return 0;
 }
+#endif
 
 static char *get_install_folder(void) {
     static char installDirectory[1024] = "";
