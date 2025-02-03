@@ -40,7 +40,7 @@ static char *get_install_folder(void) {
         normalize_directory_name(installDirectory);
     } else if (strlen(installDirectory) == 0) {
         #ifndef GIT_WINDOWS_NATIVE
-            strcpy(installDirectory, "/Applications/Anchorpoint.app/Contents/Frameworks");
+            strlcpy(installDirectory, "/Applications/Anchorpoint.app/Contents/Frameworks", sizeof(installDirectory));
         #else
             char anchorpointVersionsPath[1024];
             char *anchorpointVersions[256];
@@ -138,15 +138,8 @@ int init_anchorpoint_process(void)
         return 0;
     }
 
-    if (ap.initialized == -1) {
-        pthread_mutex_unlock(&ap.mutex);
-        return -1;
-    }
-
     ap.path = get_ap_cli_path();
     if (!file_exists(ap.path)) {
-        warning("ap.exe not found at %s", ap.path);
-        ap.initialized = -1;
         return -1;
     }
 
