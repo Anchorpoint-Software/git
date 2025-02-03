@@ -124,15 +124,31 @@ void init_anchorpoint_mutex(void)
     init_recursive_mutex(&ap.mutex);
 }
 
+static int file_exists(const char *f)
+{
+	struct stat sb;
+	return lstat(f, &sb) == 0;
+}
+
 int init_anchorpoint_process(void) 
 {
     pthread_mutex_lock(&ap.mutex);
-    if (ap.initialized) {
+    if (ap.initialized == 1) {
         pthread_mutex_unlock(&ap.mutex);
         return 0;
     }
 
+    if (ap.initialized == -1) {
+        pthread_mutex_unlock(&ap.mutex);
+        return -1;
+    }
+
     ap.path = get_ap_cli_path();
+    if (!file_exists(ap.path)) {
+        warning("ap.exe not found at %s", ap.path);
+        ap.initialized = -1;
+        return -1;
+    }
 
     strvec_pushl(&ap.cmd.args, ap.path, "vfs", "connect", NULL);
 	ap.cmd.in = -1;
@@ -265,7 +281,7 @@ int is_sync_root(const char *path)
 
     if (!ap.initialized) {
         if (init_anchorpoint_process()) {
-            die("is_sync_root: ap.exe process not initialized");
+            return 0;
         }
     }
 
