@@ -54,6 +54,10 @@ static void create_directories(const char *path, int path_len,
 				continue;
 			die_errno("cannot create directory at '%s'", buf);
 		}
+
+		if (the_repository->under_sync_root) {
+			convert_to_placeholder(buf, NULL);
+		}
 	}
 	free(buf);
 }
@@ -451,6 +455,11 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 		free(new_blob);
 		if (wrote < 0)
 			return error("unable to write file %s", path);
+
+		if (the_repository->under_sync_root) {
+			convert_to_placeholder(ce->name, &ce->oid);
+		}
+
 		break;
 
 	case S_IFGITLINK:

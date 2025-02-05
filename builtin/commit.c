@@ -1854,6 +1854,10 @@ int cmd_commit(int argc,
 		append_merge_tag_headers(parents, &tail);
 	}
 
+	if (the_repository->under_sync_root && s.change.nr <= 0) {
+		run_status(s.fp, index_file, prefix, 1, &s);
+	}
+
 	if (commit_tree_extended(sb.buf, sb.len, &the_repository->index->cache_tree->oid,
 				 parents, &oid, author_ident.buf, NULL,
 				 sign_commit, extra)) {
@@ -1899,6 +1903,11 @@ int cmd_commit(int argc,
 	}
 
 	apply_autostash_ref(the_repository, "MERGE_AUTOSTASH");
+	
+	if (the_repository->under_sync_root) {
+		wt_status_convert_placeholders(&s);
+	}
+
 
 cleanup:
 	free_commit_extra_headers(extra);

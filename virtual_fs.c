@@ -275,6 +275,54 @@ int create_placeholder(const char *path, unsigned int size, const struct object_
     return success;
 }
 
+int convert_to_placeholder(const char *path, const struct object_id *oid)
+{
+    int success = 0;
+    struct strbuf line = STRBUF_INIT;
+    const char* id = NULL;
+    if (!path) {
+        die("convert_to_placeholder: path is NULL");
+    }
+    if (oid) {
+        id = oid_to_hex(oid);
+    } else {
+        id = path;
+    }
+
+    pthread_mutex_lock(&ap.mutex);
+
+    if (!ap.initialized) {
+        if (init_anchorpoint_process()) {
+            die("convert_to_placeholder: ap.exe process not initialized");
+        }
+    }
+
+    fprintf(ap.in, "convert\n");
+    fprintf(ap.in, "%s\n", absolute_path(path));
+    fprintf(ap.in, "%s\n", id);
+    fflush(ap.in);
+
+    while (!strbuf_getline(&line, ap.out)) {
+		if (!line.len)
+			break;
+		if (!strcmp(line.buf, "1")) {
+			success = 1;
+            break;
+        }
+        if (!strcmp(line.buf, "0")) {
+			success = 0;
+            break;
+        }
+
+        // error
+        error("Failed to convert to placeholder: %s.", line.buf);
+        break;
+    }
+
+    pthread_mutex_unlock(&ap.mutex);
+    return success;
+}
+
 int is_sync_root(const char *path)
 {
     int is_sync_root = 0;

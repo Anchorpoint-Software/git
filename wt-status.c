@@ -34,6 +34,7 @@
 #include "lockfile.h"
 #include "sequencer.h"
 #include "fsmonitor-settings.h"
+#include "virtual_fs.h"
 
 #define AB_DELAY_WARNING_IN_MS (2 * 1000)
 #define UF_DELAY_WARNING_IN_MS (2 * 1000)
@@ -2553,6 +2554,17 @@ static void wt_porcelain_v2_print(struct wt_status *s)
 	for (i = 0; i < s->ignored.nr; i++) {
 		it = &(s->ignored.items[i]);
 		wt_porcelain_v2_print_other(it, s, '!');
+	}
+}
+
+void wt_status_convert_placeholders(struct wt_status *s)
+{
+	struct string_list_item *it;
+	for_each_string_list_item(it, &s->change) {
+		struct wt_status_change_data *d = it->util;
+		if (the_repository->under_sync_root) {
+			convert_to_placeholder(it->string, &d->oid_index);
+		}
 	}
 }
 
