@@ -364,3 +364,45 @@ int is_sync_root(const char *path)
     pthread_mutex_unlock(&ap.mutex);
     return is_sync_root;
 }
+
+int set_sync_state(const char *path, int in_sync)
+{
+    int success = 0;
+    struct strbuf line = STRBUF_INIT;
+    if (!path) {
+        die("set_sync_state: path is NULL");
+    }
+
+    pthread_mutex_lock(&ap.mutex);
+
+    if (!ap.initialized) {
+        if (init_anchorpoint_process()) {
+            die("set_sync_state: ap.exe process not initialized");
+        }
+    }
+
+    fprintf(ap.in, "setinsync\n");
+    fprintf(ap.in, "%s\n", absolute_path(path));
+    fprintf(ap.in, "%s\n", in_sync > 1 ? "true" : "false" );
+    fflush(ap.in);
+
+    while (!strbuf_getline(&line, ap.out)) {
+        if (!line.len)
+            break;
+        if (!strcmp(line.buf, "1")) {
+            success = 1;
+            break;
+        }
+        if (!strcmp(line.buf, "0")) {
+            success = 0;
+            break;
+        }
+
+        // error
+        error("Failed to set sync state: %s.", line.buf);
+        break;
+    }
+
+    pthread_mutex_unlock(&ap.mutex);
+    return success;
+}

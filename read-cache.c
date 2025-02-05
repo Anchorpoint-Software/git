@@ -47,6 +47,7 @@
 #include "csum-file.h"
 #include "promisor-remote.h"
 #include "hook.h"
+#include "virtual_fs.h"
 
 /* Mask for the name length in ce_flags in the on-disk index */
 
@@ -1628,6 +1629,12 @@ int refresh_index(struct index_state *istate, unsigned int flags,
 				mark_fsmonitor_invalid(istate, ce);
 				istate->cache_changed |= CE_ENTRY_CHANGED;
 			}
+
+			// mark not in sync here!
+			if (the_repository->under_sync_root) {
+				set_sync_state(ce->name, 0);
+			}
+
 			if (quiet)
 				continue;
 
