@@ -399,7 +399,7 @@ int set_sync_state(const char *path, int in_sync)
         }
 
         // error
-        error("Failed to set sync state: %s.", line.buf);
+        // error("Failed to set sync state: %s.", line.buf);
         break;
     }
 

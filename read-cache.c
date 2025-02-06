@@ -1617,6 +1617,7 @@ int refresh_index(struct index_state *istate, unsigned int flags,
 			continue;
 		display_progress(progress, i);
 		if (!new_entry) {
+			unsigned int st_mode = st_mode_from_ce(ce);
 			const char *fmt;
 
 			if (really && cache_errno == EINVAL) {
@@ -1629,7 +1630,9 @@ int refresh_index(struct index_state *istate, unsigned int flags,
 				istate->cache_changed |= CE_ENTRY_CHANGED;
 			}
 
-			if (!ignore_placeholder_updates && the_repository->under_sync_root) {
+			if (!ignore_placeholder_updates && 
+				the_repository->under_sync_root && 
+				st_mode == S_IFREG) {
 				// File is not in sync
 				set_sync_state(ce->name, 0);
 			}
