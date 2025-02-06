@@ -414,8 +414,6 @@ int ie_match_stat(struct index_state *istate,
 		return 0;
 	if (!ignore_fsmonitor && (ce->ce_flags & CE_FSMONITOR_VALID))
 		return 0;
-	if (ce->placeholder_mode == CE_PLACEHOLDER)
-		return 0;
 
 	/*
 	 * Intent-to-add entries have not been added, so the index entry
