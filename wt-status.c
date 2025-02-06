@@ -2557,14 +2557,15 @@ static void wt_porcelain_v2_print(struct wt_status *s)
 	}
 }
 
-void wt_status_convert_placeholders(struct wt_status *s)
+void wt_status_update_placeholders(struct wt_status *s)
 {
 	struct string_list_item *it;
 	for_each_string_list_item(it, &s->change) {
-		struct wt_status_change_data *d = it->util;
-		if (the_repository->under_sync_root) {
-			convert_to_placeholder(it->string, &d->oid_index);
-		}
+		set_sync_state(it->string, 0);
+	}
+
+	for_each_string_list_item(it, &s->untracked) {
+		set_sync_state(it->string, 0);
 	}
 }
 

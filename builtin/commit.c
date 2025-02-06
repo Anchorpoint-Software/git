@@ -39,6 +39,7 @@
 #include "commit-graph.h"
 #include "pretty.h"
 #include "trailer.h"
+#include "virtual_fs.h"
 
 static const char * const builtin_commit_usage[] = {
 	N_("git commit [-a | --interactive | --patch] [-s] [-v] [-u<mode>] [--amend]\n"
@@ -1581,7 +1582,7 @@ struct repository *repo UNUSED)
 		progress_flag = REFRESH_PROGRESS;
 	repo_read_index(the_repository);
 	refresh_index(the_repository->index,
-		      REFRESH_QUIET|REFRESH_UNMERGED|progress_flag,
+		      REFRESH_QUIET|REFRESH_UNMERGED|REFRESH_IGNORE_PLACEHOLDER|progress_flag,
 		      &s.pathspec, NULL, NULL);
 
 	if (use_optional_locks())
@@ -1613,6 +1614,9 @@ struct repository *repo UNUSED)
 	if (s.relative_paths)
 		s.prefix = prefix;
 
+	if (the_repository->under_sync_root) {
+		wt_status_update_placeholders(&s);
+	}
 	wt_status_print(&s);
 	wt_status_collect_free_buffers(&s);
 
@@ -1905,7 +1909,11 @@ int cmd_commit(int argc,
 	apply_autostash_ref(the_repository, "MERGE_AUTOSTASH");
 	
 	if (the_repository->under_sync_root) {
-		wt_status_convert_placeholders(&s);
+		struct string_list_item *it;
+		for_each_string_list_item(it, &s.change) {
+			struct wt_status_change_data *d = it->util;
+			convert_to_placeholder(it->string, &d->oid_index);
+		}
 	}
 
 

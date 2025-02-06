@@ -153,7 +153,7 @@ void wt_status_add_cut_line(struct wt_status *s);
 void wt_status_prepare(struct repository *r, struct wt_status *s);
 void wt_status_print(struct wt_status *s);
 void wt_status_collect(struct wt_status *s);
-void wt_status_convert_placeholders(struct wt_status *s);
+void wt_status_update_placeholders(struct wt_status *s);
 /*
  * Frees the buffers allocated by wt_status_collect.
  */

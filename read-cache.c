@@ -1533,6 +1533,7 @@ int refresh_index(struct index_state *istate, unsigned int flags,
 	int not_new = (flags & REFRESH_IGNORE_MISSING) != 0;
 	int ignore_submodules = (flags & REFRESH_IGNORE_SUBMODULES) != 0;
 	int ignore_skip_worktree = (flags & REFRESH_IGNORE_SKIP_WORKTREE) != 0;
+	int ignore_placeholder_updates = (flags & REFRESH_IGNORE_PLACEHOLDER) != 0;
 	int first = 1;
 	int in_porcelain = (flags & REFRESH_IN_PORCELAIN);
 	unsigned int options = (CE_MATCH_REFRESH |
@@ -1628,8 +1629,8 @@ int refresh_index(struct index_state *istate, unsigned int flags,
 				istate->cache_changed |= CE_ENTRY_CHANGED;
 			}
 
-			// mark not in sync here!
-			if (the_repository->under_sync_root) {
+			if (!ignore_placeholder_updates && the_repository->under_sync_root) {
+				// File is not in sync
 				set_sync_state(ce->name, 0);
 			}
 
