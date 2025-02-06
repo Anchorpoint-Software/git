@@ -489,17 +489,6 @@ finish:
 		update_ce_after_write(state, ce , &st);
 	}
 
-	if (the_repository->under_sync_root && ce->placeholder_mode != CE_PLACEHOLDER) {
-		int changed = ie_match_stat(state->istate, ce, &st, 0);
-		if (changed) {
-			// file is changed, set in sync mode to false
-			set_sync_state(ce->name, 0);
-		} else {
-			// file is not changed, set in sync mode to true
-			set_sync_state(ce->name, 1);
-		}
-	}
-
 	if (nr_checkouts)
 		(*nr_checkouts)++;
 delayed:
