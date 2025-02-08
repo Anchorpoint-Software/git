@@ -453,15 +453,15 @@ void fill_stat_cache_info(struct index_state *istate, struct cache_entry *ce, st
  */
 int fake_lstat(const struct cache_entry *ce, struct stat *st);
 
-#define REFRESH_REALLY                   (1 << 0) /* ignore_valid */
-#define REFRESH_UNMERGED                 (1 << 1) /* allow unmerged */
-#define REFRESH_QUIET                    (1 << 2) /* be quiet about it */
-#define REFRESH_IGNORE_MISSING           (1 << 3) /* ignore non-existent */
-#define REFRESH_IGNORE_SUBMODULES        (1 << 4) /* ignore submodules */
-#define REFRESH_IN_PORCELAIN             (1 << 5) /* user friendly output, not "needs update" */
-#define REFRESH_PROGRESS                 (1 << 6) /* show progress bar if stderr is tty */
-#define REFRESH_IGNORE_SKIP_WORKTREE     (1 << 7) /* ignore skip_worktree entries */
-#define REFRESH_IGNORE_PLACEHOLDER	     (1 << 8) /* do not refresh placeholder state */
+#define REFRESH_REALLY                    (1 << 0) /* ignore_valid */
+#define REFRESH_UNMERGED                  (1 << 1) /* allow unmerged */
+#define REFRESH_QUIET                     (1 << 2) /* be quiet about it */
+#define REFRESH_IGNORE_MISSING            (1 << 3) /* ignore non-existent */
+#define REFRESH_IGNORE_SUBMODULES         (1 << 4) /* ignore submodules */
+#define REFRESH_IN_PORCELAIN              (1 << 5) /* user friendly output, not "needs update" */
+#define REFRESH_PROGRESS                  (1 << 6) /* show progress bar if stderr is tty */
+#define REFRESH_IGNORE_SKIP_WORKTREE      (1 << 7) /* ignore skip_worktree entries */
+#define REFRESH_IGNORE_UPDATE_PLACEHOLDER (1 << 8) /* do not refresh placeholder state */
 int refresh_index(struct index_state *, unsigned int flags, const struct pathspec *pathspec, char *seen, const char *header_msg);
 /*
  * Refresh the index and write it to disk.

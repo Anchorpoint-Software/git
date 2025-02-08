@@ -1,3 +1,4 @@
+#define USE_THE_REPOSITORY_VARIABLE
 #include "virtual_fs.h"
 
 #include "git-compat-util.h"
@@ -400,6 +401,42 @@ int set_sync_state(const char *path, int in_sync)
 
         // error
         // error("Failed to set sync state: %s.", line.buf);
+        break;
+    }
+
+    pthread_mutex_unlock(&ap.mutex);
+    return success;
+}
+
+int get_placeholder_identifier(const char *path, struct object_id *oid) {
+    int success = 0;
+    struct strbuf line = STRBUF_INIT;
+    if (!path) {
+        die("get_placeholder_identifier: path is NULL");
+    }
+
+    pthread_mutex_lock(&ap.mutex);
+
+    if (!ap.initialized) {
+        if (init_anchorpoint_process()) {
+            die("get_placeholder_identifier: ap.exe process not initialized");
+        }
+    }
+
+    fprintf(ap.in, "getid\n");
+    fprintf(ap.in, "%s\n", absolute_path(path));
+    fflush(ap.in);
+
+    while (!strbuf_getline(&line, ap.out)) {
+        if (!line.len)
+            break;
+        if (line.len == the_hash_algo->hexsz) {
+            if (!get_oid_hex(line.buf, oid)) {
+                success = 1;
+            }
+            break;
+        }
+
         break;
     }
 

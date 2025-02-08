@@ -1582,7 +1582,7 @@ struct repository *repo UNUSED)
 		progress_flag = REFRESH_PROGRESS;
 	repo_read_index(the_repository);
 	refresh_index(the_repository->index,
-		      REFRESH_QUIET|REFRESH_UNMERGED|REFRESH_IGNORE_PLACEHOLDER|progress_flag,
+		      REFRESH_QUIET|REFRESH_UNMERGED|REFRESH_IGNORE_UPDATE_PLACEHOLDER|progress_flag,
 		      &s.pathspec, NULL, NULL);
 
 	if (use_optional_locks())

@@ -237,9 +237,13 @@ static int ce_compare_data(struct index_state *istate,
 	int match = -1;
 	int fd = -1;
 
-	if (ce->placeholder_mode == CE_PLACEHOLDER) {
-		// Do not open placeholder as it would be hydrated, always assume unchanged 
-		return 0;
+	if (the_repository->under_sync_root) {
+		struct object_id placeholder_oid;
+		if (get_placeholder_identifier(ce->name, &placeholder_oid)) {
+			if (oideq(&placeholder_oid, &ce->oid)) {
+				return 0;
+			} 
+		} 
 	}
 
 	fd = git_open_cloexec(ce->name, O_RDONLY);
@@ -424,6 +428,14 @@ int ie_match_stat(struct index_state *istate,
 		return DATA_CHANGED | TYPE_CHANGED | MODE_CHANGED;
 
 	changed = ce_match_stat_basic(ce, st);
+	if (changed && the_repository->under_sync_root) {
+		struct object_id placeholder_oid;
+		if (get_placeholder_identifier(ce->name, &placeholder_oid)) {
+			if (oideq(&placeholder_oid, &ce->oid)) {
+				return 0;
+			} 
+		}
+	}
 
 	/*
 	 * Within 1 second of this sequence:
@@ -1533,7 +1545,7 @@ int refresh_index(struct index_state *istate, unsigned int flags,
 	int not_new = (flags & REFRESH_IGNORE_MISSING) != 0;
 	int ignore_submodules = (flags & REFRESH_IGNORE_SUBMODULES) != 0;
 	int ignore_skip_worktree = (flags & REFRESH_IGNORE_SKIP_WORKTREE) != 0;
-	int ignore_placeholder_updates = (flags & REFRESH_IGNORE_PLACEHOLDER) != 0;
+	int ignore_update_placeholder = (flags & REFRESH_IGNORE_UPDATE_PLACEHOLDER) != 0;
 	int first = 1;
 	int in_porcelain = (flags & REFRESH_IN_PORCELAIN);
 	unsigned int options = (CE_MATCH_REFRESH |
@@ -1630,7 +1642,7 @@ int refresh_index(struct index_state *istate, unsigned int flags,
 				istate->cache_changed |= CE_ENTRY_CHANGED;
 			}
 
-			if (!ignore_placeholder_updates && 
+			if (!ignore_update_placeholder && 
 				the_repository->under_sync_root && 
 				st_mode == S_IFREG) {
 				// File is not in sync
