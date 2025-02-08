@@ -1651,6 +1651,25 @@ static int git_commit_config(const char *k, const char *v,
 	return git_status_config(k, v, ctx, s);
 }
 
+static void convert_directories_to_placeholder(const char* path, int path_len){
+	char *buf = xmallocz(path_len);
+	int len = 0;
+
+	while (len < path_len) {
+		do {
+			buf[len] = path[len];
+			len++;
+		} while (len < path_len && path[len] != '/');
+		if (len >= path_len)
+			break;
+		buf[len] = 0;
+
+		convert_to_placeholder(buf, NULL);
+	}
+
+	free(buf);
+}
+
 int cmd_commit(int argc,
 	       const char **argv,
 	       const char *prefix,
@@ -1913,6 +1932,7 @@ int cmd_commit(int argc,
 		for_each_string_list_item(it, &s.change) {
 			struct wt_status_change_data *d = it->util;
 			convert_to_placeholder(it->string, &d->oid_index);
+			convert_directories_to_placeholder(it->string, strlen(it->string));
 		}
 	}
 
