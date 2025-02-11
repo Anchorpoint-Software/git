@@ -237,7 +237,7 @@ static int ce_compare_data(struct index_state *istate,
 	int match = -1;
 	int fd = -1;
 
-	if (the_repository->under_sync_root) {
+	if (is_sync_root(the_repository->worktree)) {
 		struct object_id placeholder_oid;
 		if (get_placeholder_identifier(ce->name, &placeholder_oid)) {
 			if (oideq(&placeholder_oid, &ce->oid)) {
@@ -428,7 +428,7 @@ int ie_match_stat(struct index_state *istate,
 		return DATA_CHANGED | TYPE_CHANGED | MODE_CHANGED;
 
 	changed = ce_match_stat_basic(ce, st);
-	if (changed && the_repository->under_sync_root) {
+	if (changed && is_sync_root(the_repository->worktree)) {
 		struct object_id placeholder_oid;
 		if (get_placeholder_identifier(ce->name, &placeholder_oid)) {
 			if (oideq(&placeholder_oid, &ce->oid)) {
@@ -1643,7 +1643,7 @@ int refresh_index(struct index_state *istate, unsigned int flags,
 			}
 
 			if (!ignore_update_placeholder && 
-				the_repository->under_sync_root && 
+				is_sync_root(the_repository->worktree) && 
 				st_mode == S_IFREG) {
 				// File is not in sync
 				set_sync_state(ce->name, 0);

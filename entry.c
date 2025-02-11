@@ -55,7 +55,7 @@ static void create_directories(const char *path, int path_len,
 			die_errno("cannot create directory at '%s'", buf);
 		}
 
-		if (the_repository->under_sync_root) {
+		if (is_sync_root(the_repository->worktree)) {
 			convert_to_placeholder(buf, NULL);
 		}
 	}
@@ -456,7 +456,7 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 		if (wrote < 0)
 			return error("unable to write file %s", path);
 
-		if (the_repository->under_sync_root) {
+		if (is_sync_root(the_repository->worktree)) {
 			convert_to_placeholder(ce->name, &ce->oid);
 		}
 

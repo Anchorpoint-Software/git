@@ -1614,7 +1614,7 @@ struct repository *repo UNUSED)
 	if (s.relative_paths)
 		s.prefix = prefix;
 
-	if (the_repository->under_sync_root) {
+	if (is_sync_root(the_repository->worktree)) {
 		wt_status_update_placeholders(&s);
 	}
 	wt_status_print(&s);
@@ -1877,7 +1877,7 @@ int cmd_commit(int argc,
 		append_merge_tag_headers(parents, &tail);
 	}
 
-	if (the_repository->under_sync_root && s.change.nr <= 0) {
+	if (is_sync_root(the_repository->worktree) && s.change.nr <= 0) {
 		run_status(s.fp, index_file, prefix, 1, &s);
 	}
 
@@ -1927,7 +1927,7 @@ int cmd_commit(int argc,
 
 	apply_autostash_ref(the_repository, "MERGE_AUTOSTASH");
 	
-	if (the_repository->under_sync_root) {
+	if (is_sync_root(the_repository->worktree)) {
 		struct string_list_item *it;
 		for_each_string_list_item(it, &s.change) {
 			struct wt_status_change_data *d = it->util;

@@ -4269,7 +4269,7 @@ int get_win32_placeholder_mode(const char *path)
 		return -1;
 	}
 
-	if (!the_repository->under_sync_root) {
+	if (!is_sync_root(the_repository->worktree)) {
 		return CE_NO_PLACEHOLDER;
 	}
 

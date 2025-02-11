@@ -144,7 +144,7 @@ static int file_exists(const char *f)
 	return lstat(f, &sb) == 0;
 }
 
-int init_anchorpoint_process(void) 
+static int init_anchorpoint_process(void) 
 {
     pthread_mutex_lock(&ap.mutex);
     if (ap.initialized == 1) {
@@ -324,15 +324,79 @@ int convert_to_placeholder(const char *path, const struct object_id *oid)
     return success;
 }
 
+#define SYNCROOTS_PATH "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\SyncRootManager"
+#define PROVIDER_NAME "AnchorpointGitCloudProvider"
+
+static int is_path_in_usersyncroots(const char* target_path) {
+    HKEY hKey;
+    DWORD index;
+    char subkey_name[256];
+    DWORD subkey_size;
+    HKEY hSubKey;
+    char full_subkey_path[512];
+    char value_data[MAX_PATH];
+    DWORD value_size;
+    DWORD value_index;
+    char value_name[256];
+    DWORD name_size;
+    DWORD type;
+
+    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, SYNCROOTS_PATH, 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
+        return 0;
+    }
+
+    index = 0;
+    subkey_size = sizeof(subkey_name);
+
+    while (RegEnumKeyExA(hKey, index, subkey_name, &subkey_size, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
+        if (strstr(subkey_name, PROVIDER_NAME) != NULL) {
+            snprintf(full_subkey_path, sizeof(full_subkey_path), "%s\\%s\\UserSyncRoots", SYNCROOTS_PATH, subkey_name);
+
+            if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, full_subkey_path, 0, KEY_READ, &hSubKey) == ERROR_SUCCESS) {
+                value_size = sizeof(value_data);
+                value_index = 0;
+                name_size = sizeof(value_name);
+
+                while (RegEnumValueA(hSubKey, value_index, value_name, &name_size, NULL, &type, (LPBYTE)value_data, &value_size) == ERROR_SUCCESS) {
+                    if (type == REG_SZ && strcmp(value_data, target_path) == 0) {
+                        RegCloseKey(hSubKey);
+                        RegCloseKey(hKey);
+                        return 1;
+                    }
+                    value_size = sizeof(value_data);
+                    name_size = sizeof(value_name);
+                    value_index++;
+                }
+                RegCloseKey(hSubKey);
+            }
+        }
+        subkey_size = sizeof(subkey_name);
+        index++;
+    }
+    RegCloseKey(hKey);
+    return 0;
+}
+
 int is_sync_root(const char *path)
 {
-    int is_sync_root = 0;
+    static int is_sync_root = -1;
     struct strbuf line = STRBUF_INIT;
+
+    pthread_mutex_lock(&ap.mutex);
+
+    if (is_sync_root >= 0) {
+        return is_sync_root;
+    }
+
     if (!path) {
         die("is_sync_root: path is NULL");
     }
 
-    pthread_mutex_lock(&ap.mutex);
+    if (!is_path_in_usersyncroots(path)) {
+        is_sync_root = 0;
+        pthread_mutex_unlock(&ap.mutex);
+        return 0;
+    }
 
     if (!ap.initialized) {
         if (init_anchorpoint_process()) {
