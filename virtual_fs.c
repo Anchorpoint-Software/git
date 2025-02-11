@@ -340,6 +340,13 @@ static int is_path_in_usersyncroots(const char* target_path) {
     char value_name[256];
     DWORD name_size;
     DWORD type;
+    char modified_target_path[MAX_PATH];
+
+    // Append slash to end of target_path if required
+    if (target_path[strlen(target_path) - 1] != '/') {
+        snprintf(modified_target_path, sizeof(modified_target_path), "%s\\", target_path);
+        target_path = modified_target_path;
+    }
 
     if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, SYNCROOTS_PATH, 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
         return 0;
@@ -351,14 +358,13 @@ static int is_path_in_usersyncroots(const char* target_path) {
     while (RegEnumKeyExA(hKey, index, subkey_name, &subkey_size, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
         if (strstr(subkey_name, PROVIDER_NAME) != NULL) {
             snprintf(full_subkey_path, sizeof(full_subkey_path), "%s\\%s\\UserSyncRoots", SYNCROOTS_PATH, subkey_name);
-
             if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, full_subkey_path, 0, KEY_READ, &hSubKey) == ERROR_SUCCESS) {
                 value_size = sizeof(value_data);
                 value_index = 0;
                 name_size = sizeof(value_name);
 
                 while (RegEnumValueA(hSubKey, value_index, value_name, &name_size, NULL, &type, (LPBYTE)value_data, &value_size) == ERROR_SUCCESS) {
-                    if (type == REG_SZ && strcmp(value_data, target_path) == 0) {
+                    if (type == REG_SZ && fspathcmp(value_data, target_path) == 0) {
                         RegCloseKey(hSubKey);
                         RegCloseKey(hKey);
                         return 1;
@@ -374,6 +380,7 @@ static int is_path_in_usersyncroots(const char* target_path) {
         index++;
     }
     RegCloseKey(hKey);
+
     return 0;
 }
 
@@ -385,7 +392,9 @@ int is_sync_root(const char *path)
     pthread_mutex_lock(&ap.mutex);
 
     if (is_sync_root >= 0) {
-        return is_sync_root;
+        int result = is_sync_root;
+        pthread_mutex_unlock(&ap.mutex);
+        return result;
     }
 
     if (!path) {
@@ -400,6 +409,7 @@ int is_sync_root(const char *path)
 
     if (!ap.initialized) {
         if (init_anchorpoint_process()) {
+            pthread_mutex_unlock(&ap.mutex);
             return 0;
         }
     }
