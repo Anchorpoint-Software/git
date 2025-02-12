@@ -324,6 +324,7 @@ int convert_to_placeholder(const char *path, const struct object_id *oid)
     return success;
 }
 
+#ifdef GIT_WINDOWS_NATIVE
 #define SYNCROOTS_PATH "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\SyncRootManager"
 #define PROVIDER_NAME "AnchorpointGitCloudProvider"
 
@@ -383,6 +384,7 @@ static int is_path_in_usersyncroots(const char* target_path) {
 
     return 0;
 }
+#endif
 
 int is_sync_root(const char *path)
 {
@@ -401,11 +403,13 @@ int is_sync_root(const char *path)
         die("is_sync_root: path is NULL");
     }
 
+#ifdef GIT_WINDOWS_NATIVE
     if (!is_path_in_usersyncroots(path)) {
         is_sync_root = 0;
         pthread_mutex_unlock(&ap.mutex);
         return 0;
     }
+#endif 
 
     if (!ap.initialized) {
         if (init_anchorpoint_process()) {
