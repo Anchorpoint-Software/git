@@ -237,4 +237,6 @@ enum conv_attrs_classification {
 enum conv_attrs_classification classify_conv_attrs(
 	const struct conv_attrs *ca);
 
+int conv_attrs_is_lfs(const struct conv_attrs *ca);
+
 #endif /* CONVERT_H */

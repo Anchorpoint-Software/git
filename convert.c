@@ -2057,3 +2057,12 @@ enum conv_attrs_classification classify_conv_attrs(const struct conv_attrs *ca)
 
 	return CA_CLASS_STREAMABLE;
 }
+
+int conv_attrs_is_lfs(const struct conv_attrs *ca) 
+{
+	if (ca->drv && ca->drv->name && strstr(ca->drv->name, "lfs") != NULL) {
+		return 1;
+	}
+
+	return 0;
+}

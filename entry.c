@@ -284,13 +284,18 @@ void update_ce_after_write(const struct checkout *state, struct cache_entry *ce,
 	}
 }
 
-static size_t get_real_size(struct cache_entry *ce, size_t size) {
+static size_t get_real_size(struct cache_entry *ce, struct conv_attrs *ca, size_t size) {
     char *new_blob = NULL;
 
-    if (ce->ce_mode == S_IFLNK)
+    if (ce->ce_mode == S_IFLNK) {
         return size;
+	}
 
-    // detect lfs pointer file
+	if (!conv_attrs_is_lfs(ca)) {
+		return size;
+	}
+
+    // sanity check to detect lfs pointer file
     if (size > 0 && size < 256) {
         new_blob = read_blob_entry(ce, &size);
         if (new_blob) {
@@ -416,8 +421,19 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 				ret = convert_to_working_tree_ca(ca, ce->name, new_blob,
 								size, &buf, &meta);
 			}
+
+			if (ret) {
+				free(new_blob);
+				new_blob = strbuf_detach(&buf, &newsize);
+				size = newsize;
+			}
+			/*
+			* No "else" here as errors from convert are OK at this
+			* point. If the error would have been fatal (e.g.
+			* filter is required), then we would have died already.
+			*/
 		} else {
-			if (!create_placeholder(ce->name, get_real_size(ce, size), &ce->oid)) {
+			if (!create_placeholder(ce->name, get_real_size(ce, ca, size), &ce->oid)) {
 				// retry but without placeholder
 				ce->placeholder_mode = CE_NO_PLACEHOLDER;
 				free(new_blob);
@@ -429,17 +445,6 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 			free(new_blob);
 			goto finish;
 		}
-
-		if (ret) {
-			free(new_blob);
-			new_blob = strbuf_detach(&buf, &newsize);
-			size = newsize;
-		}
-		/*
-		 * No "else" here as errors from convert are OK at this
-		 * point. If the error would have been fatal (e.g.
-		 * filter is required), then we would have died already.
-		 */
 
 	write_file_entry:
 		fd = open_output_fd(path, ce, to_tempfile);
