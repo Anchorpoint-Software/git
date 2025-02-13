@@ -338,6 +338,7 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 	struct checkout_metadata meta;
 	static int scratch_nr_checkouts;
 	int write_placeholder = 0;
+	int skip_filters = 0;
 
 	if (ce->placeholder_mode <= CE_UNKNOWN_PLACEHOLDER) {
 		ce->placeholder_mode = get_placeholder_mode(ce->name);
@@ -399,7 +400,15 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 					     ce->name, oid_to_hex(&ce->oid));
 		}
 
-		if (!write_placeholder) {
+		if (write_placeholder && conv_attrs_is_lfs(ca)) {
+			/*
+			 * We skip filters for LFS as we get the real blob 
+			 * size from the LFS pointer when writing the placeholder
+			 */ 
+			skip_filters = 1;
+		}
+
+		if (!skip_filters) {
 			/*
 			* Convert from git internal format to working tree format
 			*/
@@ -432,7 +441,9 @@ static int write_entry(struct cache_entry *ce, char *path, struct conv_attrs *ca
 			* point. If the error would have been fatal (e.g.
 			* filter is required), then we would have died already.
 			*/
-		} else {
+		} 
+
+		if (write_placeholder) {
 			if (!create_placeholder(ce->name, get_real_size(ce, ca, size), &ce->oid)) {
 				// retry but without placeholder
 				ce->placeholder_mode = CE_NO_PLACEHOLDER;
