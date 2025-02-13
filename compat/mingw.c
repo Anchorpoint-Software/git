@@ -4225,12 +4225,6 @@ int is_inside_windows_container(void)
 
 int is_win32_virtual_path(const char *path)
 {
-	int mode = get_placeholder_mode(path);
-	if (mode < 0) return -1;
-	if (mode == CE_PLACEHOLDER) return 1;
-	if (mode == CE_NO_PLACEHOLDER) return 0;
-
-	/* check if the path is a virtual path */
 	return is_path_virtual(path);
 }	
 
