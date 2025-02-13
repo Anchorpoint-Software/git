@@ -237,13 +237,9 @@ static int ce_compare_data(struct index_state *istate,
 	int match = -1;
 	int fd = -1;
 
-	if (is_sync_root(the_repository->worktree)) {
-		struct object_id placeholder_oid;
-		if (get_placeholder_identifier(ce->name, &placeholder_oid)) {
-			if (oideq(&placeholder_oid, &ce->oid)) {
-				return 0;
-			} 
-		} 
+	if (ce->placeholder_mode == CE_PLACEHOLDER) {
+		// Do not open placeholder as it would be hydrated, always assume unchanged 
+		return 0;
 	}
 
 	fd = git_open_cloexec(ce->name, O_RDONLY);
@@ -428,14 +424,6 @@ int ie_match_stat(struct index_state *istate,
 		return DATA_CHANGED | TYPE_CHANGED | MODE_CHANGED;
 
 	changed = ce_match_stat_basic(ce, st);
-	if (changed && is_sync_root(the_repository->worktree)) {
-		struct object_id placeholder_oid;
-		if (get_placeholder_identifier(ce->name, &placeholder_oid)) {
-			if (oideq(&placeholder_oid, &ce->oid)) {
-				return 0;
-			} 
-		}
-	}
 
 	/*
 	 * Within 1 second of this sequence:
