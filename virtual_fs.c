@@ -9,6 +9,7 @@
 #include "sigchain.h"
 #include "hex.h"
 #include "abspath.h"
+#include "object-file.h"
 
 static void normalize_directory_name(char *path) {
     size_t len = strlen(path);
@@ -486,6 +487,46 @@ int set_sync_state(const char *path, int in_sync)
     return success;
 }
 
+int is_in_sync(const char *path) {
+    int in_sync = -1;
+    struct strbuf line = STRBUF_INIT;
+    if (!path) {
+        die("get_sync_state: path is NULL");
+    }
+
+    pthread_mutex_lock(&ap.mutex);
+
+    if (!ap.initialized) {
+        if (init_anchorpoint_process()) {
+            die("get_sync_state: ap.exe process not initialized");
+        }
+    }
+
+    fprintf(ap.in, "getinsync\n");
+    fprintf(ap.in, "%s\n", absolute_path(path));
+    fflush(ap.in);
+
+    while (!strbuf_getline(&line, ap.out)) {
+        if (!line.len)
+            break;
+        if (!strcmp(line.buf, "1")) {
+            in_sync = 1;
+            break;
+        }
+        if (!strcmp(line.buf, "0")) {
+            in_sync = 0;
+            break;
+        }
+
+        // error
+        // error("Failed to get sync state: %s.", line.buf);
+        break;
+    }
+
+    pthread_mutex_unlock(&ap.mutex);
+    return in_sync;
+}
+
 int get_placeholder_identifier(const char *path, struct object_id *oid) {
     int success = 0;
     struct strbuf line = STRBUF_INIT;
@@ -520,4 +561,22 @@ int get_placeholder_identifier(const char *path, struct object_id *oid) {
 
     pthread_mutex_unlock(&ap.mutex);
     return success;
+}
+
+int hydrate_placeholder_file(const char* path) {
+    // We can be as simple as opening a read handle to the file
+    int fd = -1;
+
+    if (!path) {
+        die("hydrate_placeholder_file: path is NULL");
+    }
+
+    fd = git_open_cloexec(path, O_RDONLY);
+    if (fd < 0) {
+        warn_on_fopen_errors(path);
+        return -1;
+    }
+    
+    close(fd);
+    return 0;
 }

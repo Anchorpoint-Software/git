@@ -238,8 +238,14 @@ static int ce_compare_data(struct index_state *istate,
 	int fd = -1;
 
 	if (ce->placeholder_mode == CE_PLACEHOLDER) {
-		// Do not open placeholder as it would be hydrated, always assume unchanged 
-		return 0;
+		struct object_id placeholder_oid;
+		if (get_placeholder_identifier(ce->name, &placeholder_oid)) {
+			if (oideq(&placeholder_oid, &ce->oid) && is_in_sync(ce->name)) {
+				return 0;
+			} 
+		} 
+
+		return 1;
 	}
 
 	fd = git_open_cloexec(ce->name, O_RDONLY);
@@ -730,7 +736,7 @@ int add_to_index(struct index_state *istate, const char *path, struct stat *st, 
 			  (intent_only ? ADD_CACHE_NEW_ONLY : 0));
 	unsigned hash_flags = pretend ? 0 : HASH_WRITE_OBJECT;
 	struct object_id oid;
-
+	
 	if (flags & ADD_CACHE_RENORMALIZE)
 		hash_flags |= HASH_RENORMALIZE;
 
@@ -1534,6 +1540,7 @@ int refresh_index(struct index_state *istate, unsigned int flags,
 	int ignore_submodules = (flags & REFRESH_IGNORE_SUBMODULES) != 0;
 	int ignore_skip_worktree = (flags & REFRESH_IGNORE_SKIP_WORKTREE) != 0;
 	int ignore_update_placeholder = (flags & REFRESH_IGNORE_UPDATE_PLACEHOLDER) != 0;
+	int ignore_hydrate_placeholder = (flags & REFRESH_IGNORE_HYDRATE_PLACEHOLDER) != 0;
 	int first = 1;
 	int in_porcelain = (flags & REFRESH_IN_PORCELAIN);
 	unsigned int options = (CE_MATCH_REFRESH |
@@ -1632,10 +1639,17 @@ int refresh_index(struct index_state *istate, unsigned int flags,
 
 			if (!ignore_update_placeholder && 
 				is_sync_root(the_repository->worktree) && 
-				st_mode == S_IFREG) {
+				st_mode & S_IFREG) {
+
 				// File is not in sync
 				set_sync_state(ce->name, 0);
-			}
+
+				if (!ignore_hydrate_placeholder) {
+					if (hydrate_placeholder_file(ce->name)) {
+						warning(_("unable to hydrate placeholder file '%s'"), ce->name);
+					}
+				}
+			} 
 
 			if (quiet)
 				continue;
